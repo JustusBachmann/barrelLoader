@@ -1,16 +1,35 @@
 #include <Wire.h>
 #include <Arduino.h>
 #include <U8g2lib.h>
+#include <AccelStepper.h>
+#include <EEPROM.h>
 
 #ifdef U8X8_HAVE_HW_I2C
 #include <Wire.h>
 #endif
 
+#define motorInterfaceType 1 // 1 = Stepper, 2 = AccelStepper
+#define dirPinX 10
+#define stepPinX 11
+
+#define encoderCLK 49
+#define encoderDT 51
+#define encoderSW 53
+
+#define STEP_SIZE 1
+#define linesPerPage 8
+#define MAX_MENU_ITEMS 5
+#define MAX_MENU_POSITIONS 15
+#define MAX_MENU_SUBMENUS 5
+#define MAX_HISTORY 10
+
+AccelStepper stepperX(motorInterfaceType, stepPinX, dirPinX);
+
+int eeAddress = 0;
+int eeOffset = sizeof(float);
+
 U8G2_SH1107_PIMORONI_128X128_F_HW_I2C u8g2(U8G2_R0);
 
-const int encoderCLK = 49;   // Encoder CLK
-const int encoderDT  = 51;   // Encoder DT
-const int encoderSW  = 53;   // Encoder Taster
 
 bool buttonPressed = false;  
 bool encoderCLKLowDetected = false;
@@ -19,36 +38,17 @@ bool encoderDTLowDetected = false;
 unsigned long encoderCLKLowTime = 0;
 unsigned long encoderDTLowTime = 0;
 
+float newPosition = 0.0f;
+bool newPositionSet = false;
+enum State {MENU, POSITIONING, SETTING};
+State state = MENU;
 
 struct Position {
   const char* name;
-  int value;
+  char axis;
+  float value;
+  int eeAddress;
 };
-
-Position X0 = {"X0", -1};
-Position Y0 = {"Y0", -1};
-Position Z0 = {"Z0", -1};
-
-Position X1 = {"X1", -1};
-Position Y1 = {"Y1", -1};
-Position Z1 = {"Z1", -1};
-
-Position X2 = {"X2", -1};
-Position Y2 = {"Y2", -1};
-Position Z2 = {"Z2", -1};
-
-Position X3 = {"X3", -1};
-Position Y3 = {"Y3", -1};
-Position Z3 = {"Z3", -1};
-
-Position X4 = {"X4", -1};
-Position Y4 = {"Y4", -1};
-Position Z4 = {"Z4", -1};
-
-const int MAX_MENU_ITEMS = 5;
-const int MAX_MENU_POSITIONS = 15;
-const int MAX_MENU_SUBMENUS = 5;
-const int MAX_HISTORY = 10; // Maximum depth of menu hierarchy
 
 struct MenuPage {
     const char* title;
@@ -78,18 +78,43 @@ struct MenuPage {
     }
 };
 
+Position X0 = {"X0", "X", 0.0f, eeAddress + eeOffset};
+Position Y0 = {"Y0", "Y", 0.0f, eeAddress + (2 * eeOffset)};
+Position Z0 = {"Z0", "Z", 0.0f, eeAddress + (3 * eeOffset)};
+
+Position X1 = {"X1", "X", 0.0f, eeAddress + (4 * eeOffset)};
+Position Y1 = {"Y1", "Y", 0.0f, eeAddress + (5 * eeOffset)};
+Position Z1 = {"Z1", "Z", 0.0f, eeAddress + (6 * eeOffset)};
+
+Position singleSideX2 = {"X2", "X", 0.0f, eeAddress + (7 * eeOffset)};
+Position peak55X2 = {"X2", "X", 0.0f, eeAddress + (8 * eeOffset)};
+Position peak60X2 = {"X2", "X", 0.0f, eeAddress + (9 * eeOffset)};
+Position Y2 = {"Y2", "Y", 0.0f, eeAddress + (10 * eeOffset)};
+Position Z2 = {"Z2", "Z", 0.0f, eeAddress + (11 * eeOffset)};
+
+Position peak55X3 = {"X3", "X", 0.0f, eeAddress + (12 * eeOffset)};
+Position peak60X3 = {"X3", "X", 0.0f, eeAddress + (13 * eeOffset)};
+Position Y3 = {"Y3", "Y", 0.0f, eeAddress + (14 * eeOffset)};
+Position Z3 = {"Z3", "Z", 0.0f, eeAddress + (15 * eeOffset)};
+
+Position X4 = {"X4", "X", 0.0f, eeAddress + (16 * eeOffset)};
+Position Y4 = {"Y4", "Y", 0.0f, eeAddress + (17 * eeOffset)};
+Position Z4 = {"Z4", "Z", 0.0f, eeAddress + (18 * eeOffset)};
+
+Position* homePositions[] = {&X0, &Y0, &Z0, nullptr};
+
 const char* peak55Items[] = {"Back", nullptr};
-Position* peak55Positions[] = {&X2, &X3, nullptr};
+Position* peak55Positions[] = {&peak55X2, &peak55X3, nullptr};
 MenuPage* peak55SubMenus[] = {nullptr};
 MenuPage peak55Menu("Peak55", peak55Items, peak55Positions, peak55SubMenus);
 
 const char* peak60Items[] = {"Back", nullptr};
-Position* peak60Positions[] = {&X2, &X3, nullptr};
+Position* peak60Positions[] = {&peak60X2, &peak60X3, nullptr};
 MenuPage* peak60SubMenus[] = {nullptr};
 MenuPage peak60Menu("Peak60", peak60Items, peak60Positions, peak60SubMenus);
 
 const char* singleSideItems[] = {"Back", nullptr};
-Position* singleSidePositions[] = {&X2, nullptr};
+Position* singleSidePositions[] = {&singleSideX2, nullptr};
 MenuPage* singleSideSubMenus[] = {nullptr};
 MenuPage singleSideMenu("SingleSide", singleSideItems, singleSidePositions, singleSideSubMenus);
 
@@ -124,18 +149,27 @@ MenuPage* navigationHistory[MAX_HISTORY];
 
 int selectedIndex = 0;
 int topIndex = 0;
-const int linesPerPage = 8;
-
 
 void setup() {
-  Serial.begin(115200);
+  Serial.begin(9600);
 
-  // Pins für Encoder
   pinMode(encoderCLK, INPUT_PULLUP);
   pinMode(encoderDT,  INPUT_PULLUP);
   pinMode(encoderSW,  INPUT_PULLUP);
 
+  stepperX.setMaxSpeed(1000);       // Maximum speed in steps per second
+  stepperX.setAcceleration(500);   // Acceleration in steps per second^2
+
   u8g2.begin();
+
+  draw(renderLoadingScreen);
+  loadAllPositions(homePositions, 3);
+  updatePosition(&X0, 0.0f);
+  updatePosition(&Y0, 0.0f);
+  updatePosition(&Z0, 0.0f);
+  updatePosition(&singleSideX2, 0.0f);
+  loadAllPositions(activePage->positions, activePage->positionsCount);
+  
   draw(renderMenu);
 }
 
@@ -157,13 +191,34 @@ void loop() {
 
   if (encoderCLKLowDetected && encoderDTLowDetected) {
     if (encoderCLKLowTime < encoderDTLowTime) {
-      clampAndScroll(+1);
+      switch (state) {
+        case MENU:
+          clampAndScroll(+1);
+          draw(renderMenu);
+          break;
+        case POSITIONING:
+          newPosition -= 1;
+          break;
+        case SETTING:
+          positionSetting(+1);
+          break;
+      }
     } else if (encoderDTLowTime < encoderCLKLowTime) {
-      clampAndScroll(-1);
+      switch (state) {
+        case MENU:
+          clampAndScroll(-1);
+          draw(renderMenu);
+          break;
+        case POSITIONING:
+          newPosition -= 1;
+          break;
+        case SETTING:
+          positionSetting(-1);          
+          break;
+      }
     }
 
     resetDetection();
-    draw(renderMenu);
   }
 }
 
@@ -172,23 +227,6 @@ void resetDetection() {
   encoderDTLowDetected = false;
   encoderCLKLowTime = 0;
   encoderDTLowTime = 0;
-}
-
-void changePage(MenuPage* newActive) {
-  if (historyIndex < MAX_HISTORY - 1) {
-      navigationHistory[++historyIndex] = activePage; 
-  }
-  activePage = newActive;
-  selectedIndex = 0;
-  topIndex = 0;
-}
-
-void goBack() {
-  if (historyIndex >= 0) {
-    activePage = navigationHistory[historyIndex--];
-    selectedIndex = 0;
-    topIndex = 0; 
-  }
 }
 
 void waitForButtonRelease() {
@@ -209,59 +247,32 @@ void waitForButtonRelease() {
   buttonPressed = false;
 }
 
-void clampAndScroll(int direction) {
-  if (selectedIndex + direction >= 0 && selectedIndex + direction < activePageLength()) {
-    selectedIndex += direction;
+void positionSetting(int direction) {
+  switch (activePage->positions[selectedIndex - activePage->subMenusCount]->axis) {
+    case 'X':
+      if (newPosition + direction * STEP_SIZE >= X0.value) {
+        newPosition += direction * STEP_SIZE;
+        stepperX.moveTo(direction * STEP_SIZE);
+      } else {
+        newPosition = 0;
+      } 
+      break;
+    case 'Y':
+      if (newPosition + direction * STEP_SIZE >= Y0.value) {
+        newPosition += direction * STEP_SIZE;
+      } else {
+        newPosition = 0;
+      }
+      break;
+    case 'Z':
+      if (newPosition + direction * STEP_SIZE >= Z0.value) {
+        newPosition += direction * STEP_SIZE;
+      } else {
+        newPosition = 0;
+      }
+      break;
   }
-
-  if (selectedIndex < topIndex) {
-    topIndex = selectedIndex;
-  } else if (selectedIndex > topIndex + (linesPerPage)) {
-    topIndex = selectedIndex - (linesPerPage);
-  }
-}
-
-void draw(void (*renderFunction)()) {
-  u8g2.firstPage();
-  do {
-    renderFunction();
-  } while (u8g2.nextPage());
-}
-
-void renderMenu() {
-  u8g2.setFont(u8g2_font_ncenB08_tr);
-
-  u8g2.setCursor(0, 10);
-  u8g2.print(activePage->title);
-
-  u8g2.setCursor(0, 12);
-  u8g2.print("___________________________");
-
-  for (int i = 0; i <= linesPerPage; i++) {
-    int itemIndex = topIndex + i;
-    if (itemIndex >= activePageLength()) break;
-
-    int yPos = 24 + (i * 12); 
-
-    if (itemIndex == selectedIndex) {
-      u8g2.setDrawColor(1);
-      u8g2.drawBox(0, yPos - 10, 128, 12);
-      u8g2.setDrawColor(0);
-    } else {
-      u8g2.setDrawColor(1); 
-    }
-
-    u8g2.setCursor(2, yPos);
-    if (itemIndex < activePage->subMenusCount) {
-      u8g2.print(activePage->subMenus[itemIndex]->title);
-    } else if (itemIndex - activePage->subMenusCount < activePage->positionsCount) {
-      u8g2.print(activePage->positions[itemIndex - activePage->subMenusCount]->name);
-    } else {
-      u8g2.print(activePage->items[itemIndex - activePage->subMenusCount - activePage->positionsCount]);
-    }
-  }
-
-  u8g2.setDrawColor(1);
+  draw(renderPosition);
 }
 
 void renderPosition() {
@@ -274,12 +285,21 @@ void renderPosition() {
   u8g2.print("___________________________");
 
   u8g2.setCursor(5, 24);
-  u8g2.print(activePage->positions[selectedIndex - activePage->subMenusCount]->value);
+  if (newPositionSet) {
+      u8g2.setDrawColor(1);
+      u8g2.drawBox(0, 24 - 10, 128, 12);
+      u8g2.setDrawColor(0);
+    } else {
+      u8g2.setDrawColor(1); 
+    }
+  u8g2.print(newPosition);
+  Serial.print("New position: ");
+  Serial.println(newPosition);
 }
 
 
-
 void handleButtonPressed() {
+  if (state == MENU) {
     if (selectedIndex < activePage->subMenusCount) {
       changePage(activePage->subMenus[selectedIndex]);
       draw(renderMenu);
@@ -287,6 +307,7 @@ void handleButtonPressed() {
     }
     int selectedPositionItem = selectedIndex - activePage->subMenusCount;
     if (selectedPositionItem < activePage->positionsCount) {
+      state = SETTING;
       draw(renderPosition);
       return;
     }
@@ -297,10 +318,17 @@ void handleButtonPressed() {
       draw(renderMenu);
       return;
     }
-    
-
-//----------------------------------dont change Logic above----------------------------------//
-    // Handle other actions here
-    Serial.print("Selected action: ");
-    Serial.println(activePage->items[selectedMenuItem]);
+  } else if (state == SETTING) {
+    if (newPositionSet) {
+      newPositionSet = false;
+      state = MENU;
+      activePage->positions[selectedIndex - activePage->subMenusCount]->value = newPosition;
+      updatePosition(activePage->positions[selectedIndex - activePage->subMenusCount], newPosition);
+      draw(renderMenu);
+    } else {
+      newPositionSet = true;
+      newPosition = activePage->positions[selectedIndex - activePage->subMenusCount]->value;
+      draw(renderPosition);
+    }
+  }
 }

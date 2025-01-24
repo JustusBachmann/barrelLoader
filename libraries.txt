@@ -2,3 +2,4 @@
 # See https://docs.wokwi.com/guides/libraries
 
 U8g2
+AccelStepper
