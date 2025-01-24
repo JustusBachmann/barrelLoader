@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "author": "Christian Buschgerd",
+  "editor": "wokwi",
+  "parts": [
+    { "type": "wokwi-arduino-mega", "id": "mega", "top": 77.4, "left": -22.8, "attrs": {} },
+    {
+      "type": "board-grove-oled-sh1107",
+      "id": "oled1",
+      "top": -221.03,
+      "left": -112.1,
+      "attrs": {}
+    },
+    { "type": "wokwi-ky-040", "id": "encoder1", "top": -17.5, "left": -77.6, "attrs": {} }
+  ],
+  "connections": [
+    [ "encoder1:GND", "mega:GND.1", "black", [ "h0" ] ],
+    [ "oled1:GND.1", "mega:GND.1", "black", [ "h0" ] ],
+    [ "oled1:VCC", "mega:5V", "red", [ "h86.4", "v393.6" ] ],
+    [ "encoder1:VCC", "mega:5V", "red", [ "h0" ] ],
+    [ "oled1:SDA", "mega:20", "green", [ "h0" ] ],
+    [ "oled1:SCL.1", "mega:21", "green", [ "h0" ] ],
+    [ "encoder1:CLK", "mega:49", "green", [ "h0" ] ],
+    [ "encoder1:DT", "mega:51", "green", [ "h0" ] ],
+    [ "encoder1:SW", "mega:53", "green", [ "h0" ] ]
+  ],
+  "dependencies": {}
+}
