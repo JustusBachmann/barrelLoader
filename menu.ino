@@ -2,18 +2,20 @@ void changePage(MenuPage* newActive) {
   if (historyIndex < MAX_HISTORY - 1) {
       navigationHistory[++historyIndex] = activePage; 
   }
-  saveAllPositions(activePage->positions, activePage->positionsCount);
   activePage = newActive;
-  loadAllPositions(activePage->positions, activePage->positionsCount);
+  if (activePage->title == "Settings") {
+    state = SETTING;
+  }
   selectedIndex = 0;
   topIndex = 0;
 }
 
 void goBack() {
   if (historyIndex >= 0) {
-    saveAllPositions(activePage->positions, activePage->positionsCount);
+    if (activePage->title == "Settings") {
+      state = IDLE;
+    }
     activePage = navigationHistory[historyIndex--];
-    loadAllPositions(activePage->positions, activePage->positionsCount);
     selectedIndex = 0;
     topIndex = 0; 
   }
