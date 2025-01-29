@@ -2,52 +2,49 @@
 #include <Arduino.h>
 #include <U8g2lib.h>
 #include <AccelStepper.h>
+// todo use MultiStepper for driving sync
 #include <EEPROM.h>
 
 #ifdef U8X8_HAVE_HW_I2C
 #include <Wire.h>
 #endif
 
-#define motorInterfaceType 1 // 1 = Stepper, 2 = AccelStepper
-#define dirPinX 10
-#define stepPinX 11
+#define encoderCLK 49   // Encoder CLK
+#define encoderDT 51   // Encoder DT
+#define encoderSW 53   // Encoder Taster
+#define LOB sizeof(byte) * 4 //4 byte for float
 
-#define encoderCLK 49
-#define encoderDT 51
-#define encoderSW 53
+#define motorInterfaceType 1
+#define X_DRV_DIR 10
+#define X_DRV_STEP 11
+#define Y_DRV_DIR 8
+#define Y_DRV_STEP 9
+#define Z_DRV_DIR 6
+#define Z_DRV_STEP 7
 
-#define STEP_SIZE 1
-#define linesPerPage 8
 #define MAX_MENU_ITEMS 5
 #define MAX_MENU_POSITIONS 15
 #define MAX_MENU_SUBMENUS 5
 #define MAX_HISTORY 10
+#define linesPerPage 8
 
-AccelStepper stepperX(motorInterfaceType, stepPinX, dirPinX);
+enum Axis {
+  X,
+  Y,
+  Z
+};
 
-int eeAddress = 0;
-int eeOffset = sizeof(float);
-
-U8G2_SH1107_PIMORONI_128X128_F_HW_I2C u8g2(U8G2_R0);
-
-
-bool buttonPressed = false;  
-bool encoderCLKLowDetected = false;
-bool encoderDTLowDetected = false;
-
-unsigned long encoderCLKLowTime = 0;
-unsigned long encoderDTLowTime = 0;
-
-float newPosition = 0.0f;
-bool newPositionSet = false;
-enum State {MENU, POSITIONING, SETTING};
-State state = MENU;
+enum State {
+  IDLE,
+  SETTING,
+  SETPOSITION
+};
 
 struct Position {
   const char* name;
-  char axis;
+  Axis axis;
   float value;
-  int eeAddress;
+  int eepromOffset;
 };
 
 struct MenuPage {
@@ -78,30 +75,31 @@ struct MenuPage {
     }
 };
 
-Position X0 = {"X0", "X", 0.0f, eeAddress + eeOffset};
-Position Y0 = {"Y0", "Y", 0.0f, eeAddress + (2 * eeOffset)};
-Position Z0 = {"Z0", "Z", 0.0f, eeAddress + (3 * eeOffset)};
+State state = IDLE;
 
-Position X1 = {"X1", "X", 0.0f, eeAddress + (4 * eeOffset)};
-Position Y1 = {"Y1", "Y", 0.0f, eeAddress + (5 * eeOffset)};
-Position Z1 = {"Z1", "Z", 0.0f, eeAddress + (6 * eeOffset)};
+//positionen in eprom speichern 
+Position X0 = {"X0", X, 0, 1};
+Position Y0 = {"Y0", Y, 0, 2};
+Position Z0 = {"Z0", Z, 0, 3};
 
-Position singleSideX2 = {"X2", "X", 0.0f, eeAddress + (7 * eeOffset)};
-Position peak55X2 = {"X2", "X", 0.0f, eeAddress + (8 * eeOffset)};
-Position peak60X2 = {"X2", "X", 0.0f, eeAddress + (9 * eeOffset)};
-Position Y2 = {"Y2", "Y", 0.0f, eeAddress + (10 * eeOffset)};
-Position Z2 = {"Z2", "Z", 0.0f, eeAddress + (11 * eeOffset)};
+Position X1 = {"X1", X, 0, 4};
+Position Y1 = {"Y1", Y, 0, 5};
+Position Z1 = {"Z1", Z, 0, 6};
 
-Position peak55X3 = {"X3", "X", 0.0f, eeAddress + (12 * eeOffset)};
-Position peak60X3 = {"X3", "X", 0.0f, eeAddress + (13 * eeOffset)};
-Position Y3 = {"Y3", "Y", 0.0f, eeAddress + (14 * eeOffset)};
-Position Z3 = {"Z3", "Z", 0.0f, eeAddress + (15 * eeOffset)};
+Position peak55X2 = {"X2", X, 0, 7};
+Position peak60X2 = {"X2", X, 0, 8};
+Position singleSideX2 = {"X2", X, 0, 9};
+Position Y2 = {"Y2", Y, 0, 10};
+Position Z2 = {"Z2", Z, 0, 11};
 
-Position X4 = {"X4", "X", 0.0f, eeAddress + (16 * eeOffset)};
-Position Y4 = {"Y4", "Y", 0.0f, eeAddress + (17 * eeOffset)};
-Position Z4 = {"Z4", "Z", 0.0f, eeAddress + (18 * eeOffset)};
+Position peak55X3 = {"X3", X, 0, 12};
+Position peak60X3 = {"X3", X, 0, 13};
+Position Y3 = {"Y3", Y, 0, 14};
+Position Z3 = {"Z3", Z, 0, 15};
 
-Position* homePositions[] = {&X0, &Y0, &Z0, nullptr};
+Position X4 = {"X4", X, 0, 16};
+Position Y4 = {"Y4", Y, 0, 17};
+Position Z4 = {"Z4", Z, 0, 18};
 
 const char* peak55Items[] = {"Back", nullptr};
 Position* peak55Positions[] = {&peak55X2, &peak55X3, nullptr};
@@ -140,195 +138,31 @@ MenuPage mainMenu("Barrelloader 3.0", mainMenuItems, mainMenuPositions, mainMenu
 
 
 MenuPage* activePage = &mainMenu;
+Position* currentPosition = nullptr;
+MenuPage* navigationHistory[MAX_HISTORY];
+
+U8G2_SH1107_PIMORONI_128X128_F_HW_I2C u8g2(U8G2_R0);
+
 int activePageLength() {
   return activePage->menuItemsCount + activePage->subMenusCount + activePage->positionsCount;
 }
+
 int historyIndex = -1;
-MenuPage* navigationHistory[MAX_HISTORY];
-
-
 int selectedIndex = 0;
 int topIndex = 0;
 
-void setup() {
-  Serial.begin(9600);
+float newPosition = 0.0f;
+int eepromAddress = 0;
 
-  pinMode(encoderCLK, INPUT_PULLUP);
-  pinMode(encoderDT,  INPUT_PULLUP);
-  pinMode(encoderSW,  INPUT_PULLUP);
+unsigned long encoderCLKLowTime = 0;
+unsigned long encoderDTLowTime = 0;
 
-  stepperX.setMaxSpeed(1000);       // Maximum speed in steps per second
-  stepperX.setAcceleration(500);   // Acceleration in steps per second^2
+bool buttonPressed = false;  
+bool encoderCLKLowDetected = false;
+bool encoderDTLowDetected = false;
 
-  u8g2.begin();
+int stepSize = 50; //200 steps = 360°
 
-  draw(renderLoadingScreen);
-  loadAllPositions(homePositions, 3);
-  updatePosition(&X0, 0.0f);
-  updatePosition(&Y0, 0.0f);
-  updatePosition(&Z0, 0.0f);
-  updatePosition(&singleSideX2, 0.0f);
-  loadAllPositions(activePage->positions, activePage->positionsCount);
-  
-  draw(renderMenu);
-}
-
-void loop() {
-  if (digitalRead(encoderSW) == LOW) {
-    waitForButtonRelease();
-    handleButtonPressed();
-  }
-
-  if (digitalRead(encoderCLK) == LOW && !encoderCLKLowDetected) {
-    encoderCLKLowDetected = true;
-    encoderCLKLowTime = millis(); 
-  }
-
-  if (digitalRead(encoderDT) == LOW && !encoderDTLowDetected) {
-    encoderDTLowDetected = true;
-    encoderDTLowTime = millis();
-  }
-
-  if (encoderCLKLowDetected && encoderDTLowDetected) {
-    if (encoderCLKLowTime < encoderDTLowTime) {
-      switch (state) {
-        case MENU:
-          clampAndScroll(+1);
-          draw(renderMenu);
-          break;
-        case POSITIONING:
-          newPosition -= 1;
-          break;
-        case SETTING:
-          positionSetting(+1);
-          break;
-      }
-    } else if (encoderDTLowTime < encoderCLKLowTime) {
-      switch (state) {
-        case MENU:
-          clampAndScroll(-1);
-          draw(renderMenu);
-          break;
-        case POSITIONING:
-          newPosition -= 1;
-          break;
-        case SETTING:
-          positionSetting(-1);          
-          break;
-      }
-    }
-
-    resetDetection();
-  }
-}
-
-void resetDetection() {
-  encoderCLKLowDetected = false;
-  encoderDTLowDetected = false;
-  encoderCLKLowTime = 0;
-  encoderDTLowTime = 0;
-}
-
-void waitForButtonRelease() {
-  const unsigned long debounceDelay = 50;
-  unsigned long lastDebounceTime = 0;
-
-  while (true) {
-    bool currentState = digitalRead(encoderSW);
-    if (currentState == HIGH) {
-      if ((millis() - lastDebounceTime) > debounceDelay) {
-        break;
-      }
-    } else {
-      lastDebounceTime = millis();
-    }
-  }
-
-  buttonPressed = false;
-}
-
-void positionSetting(int direction) {
-  switch (activePage->positions[selectedIndex - activePage->subMenusCount]->axis) {
-    case 'X':
-      if (newPosition + direction * STEP_SIZE >= X0.value) {
-        newPosition += direction * STEP_SIZE;
-        stepperX.moveTo(direction * STEP_SIZE);
-      } else {
-        newPosition = 0;
-      } 
-      break;
-    case 'Y':
-      if (newPosition + direction * STEP_SIZE >= Y0.value) {
-        newPosition += direction * STEP_SIZE;
-      } else {
-        newPosition = 0;
-      }
-      break;
-    case 'Z':
-      if (newPosition + direction * STEP_SIZE >= Z0.value) {
-        newPosition += direction * STEP_SIZE;
-      } else {
-        newPosition = 0;
-      }
-      break;
-  }
-  draw(renderPosition);
-}
-
-void renderPosition() {
-  u8g2.setFont(u8g2_font_ncenB08_tr);
-
-  u8g2.setCursor(0, 10);
-  u8g2.print(activePage->positions[selectedIndex - activePage->subMenusCount]->name);
-
-  u8g2.setCursor(0, 12);
-  u8g2.print("___________________________");
-
-  u8g2.setCursor(5, 24);
-  if (newPositionSet) {
-      u8g2.setDrawColor(1);
-      u8g2.drawBox(0, 24 - 10, 128, 12);
-      u8g2.setDrawColor(0);
-    } else {
-      u8g2.setDrawColor(1); 
-    }
-  u8g2.print(newPosition);
-  Serial.print("New position: ");
-  Serial.println(newPosition);
-}
-
-
-void handleButtonPressed() {
-  if (state == MENU) {
-    if (selectedIndex < activePage->subMenusCount) {
-      changePage(activePage->subMenus[selectedIndex]);
-      draw(renderMenu);
-      return;
-    }
-    int selectedPositionItem = selectedIndex - activePage->subMenusCount;
-    if (selectedPositionItem < activePage->positionsCount) {
-      state = SETTING;
-      draw(renderPosition);
-      return;
-    }
-
-    int selectedMenuItem = selectedIndex - activePage->subMenusCount - activePage->positionsCount;
-    if (strcmp(activePage->items[selectedMenuItem], "Back") == 0) {
-      goBack();
-      draw(renderMenu);
-      return;
-    }
-  } else if (state == SETTING) {
-    if (newPositionSet) {
-      newPositionSet = false;
-      state = MENU;
-      activePage->positions[selectedIndex - activePage->subMenusCount]->value = newPosition;
-      updatePosition(activePage->positions[selectedIndex - activePage->subMenusCount], newPosition);
-      draw(renderMenu);
-    } else {
-      newPositionSet = true;
-      newPosition = activePage->positions[selectedIndex - activePage->subMenusCount]->value;
-      draw(renderPosition);
-    }
-  }
-}
+AccelStepper stepperX(motorInterfaceType, X_DRV_STEP, X_DRV_DIR);
+AccelStepper stepperY(motorInterfaceType, Y_DRV_STEP, Y_DRV_DIR);
+AccelStepper stepperZ(motorInterfaceType, Z_DRV_STEP, Z_DRV_DIR);
