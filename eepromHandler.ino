@@ -1,6 +1,11 @@
 void clearEEPROM() {
-  for (int i = 0 ; i < EEPROM.length() ; i++) {
-    EEPROM.write(i, 0);
+  float f = EEPROM.read(eepromAddress);
+  Serial.println(f);
+  if (f != (float) eeprom_crc()) {
+    for (int i = 1 ; i < EEPROM.length() ; i++) {
+      EEPROM.write(i, 0.0f);
+    }
+    EEPROM.put(0, (float) eeprom_crc());
   }
 }
 
@@ -22,13 +27,19 @@ unsigned long eeprom_crc(void) {
   return crc;
 }
 
-void updatePosition(Position* pos, float value) {
-  pos->value = value;
-  EEPROM.put(pos->eeAddress, value);
+void saveToEEPROM() {
+  if (currentPosition != nullptr) {
+    currentPosition->value = newPosition;
+    EEPROM.put(eepromAddress + currentPosition->eepromOffset * LOB, newPosition);
+    EEPROM.put(eepromAddress, eeprom_crc());
+    currentPosition = nullptr;
+  }
 }
 
-void loadPosition(Position* pos) {
-  EEPROM.get(pos->eeAddress, pos->value);
+void readPositionFromEEPROM(Position* pos) {
+  EEPROM.get(eepromAddress + pos->eepromOffset * LOB, pos->value);
+  currentPosition = pos;
+  newPosition = currentPosition->value;
 }
 
 void loadAllPositions(Position* positions[], int count) {
