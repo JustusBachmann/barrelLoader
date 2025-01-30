@@ -20,8 +20,14 @@ void waitForButtonRelease() {
       lastDebounceTime = millis();
     }
   }
-
   buttonPressed = false;
+}
+
+bool destinationReached(AccelStepper* stepper) {
+  if (stepper->distanceToGo() == 0) {
+    return true;
+  }
+  return false;
 }
 
 void handleButtonPressedMenu() {
@@ -30,44 +36,34 @@ void handleButtonPressedMenu() {
       draw(renderMenu);
       return;
     }
+
     int selectedPositionItem = selectedIndex - activePage->subMenusCount;
     if (selectedPositionItem < activePage->positionsCount) {
-      readPositionFromEEPROM(activePage->positions[selectedIndex - activePage->subMenusCount]);
-      draw(renderPosition);
+      readPositionFromEEPROM(activePage->positions[selectedPositionItem]);
       if (state == SETTING) {
+        draw(renderPosition);
         state = SETPOSITION;
+        step(currentPosition);
       }
       return;
     }
 
-    int selectedMenuItem = selectedIndex - activePage->subMenusCount - activePage->positionsCount;
+    int selectedProgramItem = selectedPositionItem - activePage->positionsCount;
+    if (selectedProgramItem < activePage->programsCount) {
+      state = RUNNING;
+      activeProgram = activePage->programs[selectedProgramItem];
+      draw(renderProgram);
+      activeProgram->programFunction();
+      draw(renderMenu);
+      activeProgram = nullptr;
+      state = IDLE;
+      return;
+    }
+
+    int selectedMenuItem = selectedProgramItem - activePage->programsCount;
     if (strcmp(activePage->items[selectedMenuItem], "Back") == 0) {
       goBack();
       draw(renderMenu);
       return;
     }
-    
-
-    // Handle other actions here
-    Serial.print("Selected action: ");
-    Serial.println(activePage->items[selectedMenuItem]);
-}
-
-void setPosition(int dir) {
-  newPosition += stepSize * dir;
-  switch(currentPosition->axis) {
-    case X:
-      stepperX.move(stepSize * dir);
-      stepperX.runToPosition();
-      break;
-    case Y:
-      stepperY.move(stepSize * dir);
-      stepperY.runToPosition();
-      break;
-    case Z:
-      stepperZ.move(stepSize * dir);
-      stepperZ.runToPosition();
-      break;
-  }
-  
 }

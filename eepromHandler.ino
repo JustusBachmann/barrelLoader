@@ -1,12 +1,22 @@
 void clearEEPROM() {
-  float f = EEPROM.read(eepromAddress);
-  Serial.println(f);
-  if (f != (float) eeprom_crc()) {
-    for (int i = 1 ; i < EEPROM.length() ; i++) {
-      EEPROM.write(i, 0.0f);
-    }
-    EEPROM.put(0, (float) eeprom_crc());
+  draw(renderLoadingScreen);
+  long f = 0; 
+  for (int i = 0; i < lengthOfLong; i++) {
+    f |= ((long)EEPROM.read(i)) << (i * 8);
   }
+  Serial.println(f);
+  
+  if (f != eeprom_crc()) {
+    for (int i = 1; i < EEPROM.length(); i++) {
+      EEPROM.write(i, 0); 
+    }
+    for (int i = 0; i < lengthOfLong; i++) {
+      EEPROM.write(i, (eeprom_crc() >> (i * 8)) & 0xFF); 
+    }
+  }
+  
+  goBack();
+  draw(renderMenu);
 }
 
 unsigned long eeprom_crc(void) {
@@ -18,38 +28,54 @@ unsigned long eeprom_crc(void) {
   };
 
   unsigned long crc = ~0L;
-  for (int index = 0 ; index < EEPROM.length()  ; ++index) {
-    crc = crc_table[(crc ^ EEPROM[index]) & 0x0f] ^ (crc >> 4);
-    crc = crc_table[(crc ^ (EEPROM[index] >> 4)) & 0x0f] ^ (crc >> 4);
-    crc = ~crc;
+  
+  for (int index = 0; index < EEPROM.length(); ++index) {
+    uint8_t data = EEPROM.read(index); 
+    crc = crc_table[(crc ^ data) & 0x0F] ^ (crc >> 4);
+    crc = crc_table[(crc ^ (data >> 4)) & 0x0F] ^ (crc >> 4);
   }
-
-  return crc;
+  
+  return ~crc; 
 }
 
 void saveToEEPROM() {
   if (currentPosition != nullptr) {
-    currentPosition->value = newPosition;
-    EEPROM.put(eepromAddress + currentPosition->eepromOffset * LOB, newPosition);
-    EEPROM.put(eepromAddress, eeprom_crc());
+    currentPosition->value = newPosition.value;
+    
+    for (int i = 0; i < lengthOfLong; i++) {
+      EEPROM.write(i + currentPosition->eepromOffset * lengthOfLong, 
+                   (newPosition.value >> (i * 8)) & 0xFF); 
+    }
+
+    unsigned long crc = eeprom_crc();
+    for (int i = 0; i < lengthOfLong; i++) {
+      EEPROM.write(i, (crc >> (i * 8)) & 0xFF); 
+    }
+
     currentPosition = nullptr;
   }
 }
 
 void readPositionFromEEPROM(Position* pos) {
-  EEPROM.get(eepromAddress + pos->eepromOffset * LOB, pos->value);
+  pos->value = 0; 
+  for (int i = 0; i < lengthOfLong; i++) {
+    pos->value |= ((long)EEPROM.read(i + pos->eepromOffset * lengthOfLong)) << (i * 8);
+  }
+  
   currentPosition = pos;
-  newPosition = currentPosition->value;
+  newPosition.value = currentPosition->value;
+  newPosition.axis = currentPosition->axis;
+}
+
+void loadPosition(Position* pos) {
+   pos->value = 0; // Clear value before reading
+   for (int i = 0; i < lengthOfLong; i++) {
+     pos->value |= ((long)EEPROM.read(i + pos->eepromOffset * lengthOfLong)) << (i * 8);
+   }
 }
 
 void loadAllPositions(Position* positions[], int count) {
   for (int i = 0; i < count; i++) {
     loadPosition(positions[i]);
-  }
-}
-
-void saveAllPositions(Position* positions[], int count) {
-  for (int i = 0; i < count; i++) {
-    updatePosition(positions[i], positions[i]->value);
   }
 }
