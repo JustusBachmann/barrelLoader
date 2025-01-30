@@ -5,13 +5,20 @@ void resetDetection() {
   encoderDTLowTime = 0;
 }
 
+void setHigh(int pin) {
+  digitalWrite(pin, HIGH);
+}
+
+void setLow(int pin) {
+  digitalWrite(pin, LOW);
+}
 
 void waitForButtonRelease() {
   const unsigned long debounceDelay = 50;
   unsigned long lastDebounceTime = 0;
 
   while (true) {
-    bool currentState = digitalRead(encoderSW);
+    bool currentState = digitalRead(ENCODER_SW);
     if (currentState == HIGH) {
       if ((millis() - lastDebounceTime) > debounceDelay) {
         break;
@@ -28,6 +35,16 @@ bool destinationReached(AccelStepper* stepper) {
     return true;
   }
   return false;
+}
+
+void saveNewPosition() {
+  if (currentPosition != nullptr) {
+    currentPosition->value = newPosition.value;
+    saveToEEPROM(currentPosition);
+    currentPosition = nullptr;
+    state = SETTING;
+    draw(renderMenu);
+  }
 }
 
 void handleButtonPressedMenu() {

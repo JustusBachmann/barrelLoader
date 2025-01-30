@@ -38,21 +38,15 @@ unsigned long eeprom_crc(void) {
   return ~crc; 
 }
 
-void saveToEEPROM() {
-  if (currentPosition != nullptr) {
-    currentPosition->value = newPosition.value;
-    
-    for (int i = 0; i < lengthOfLong; i++) {
-      EEPROM.write(i + currentPosition->eepromOffset * lengthOfLong, 
-                   (newPosition.value >> (i * 8)) & 0xFF); 
-    }
+void saveToEEPROM(Position* pos) {
+  for (int i = 0; i < lengthOfLong; i++) {
+    EEPROM.write(i + pos->eepromOffset * lengthOfLong, 
+                  (pos->value >> (i * 8)) & 0xFF); 
+  }
 
-    unsigned long crc = eeprom_crc();
-    for (int i = 0; i < lengthOfLong; i++) {
-      EEPROM.write(i, (crc >> (i * 8)) & 0xFF); 
-    }
-
-    currentPosition = nullptr;
+  unsigned long crc = eeprom_crc();
+  for (int i = 0; i < lengthOfLong; i++) {
+    EEPROM.write(i, (crc >> (i * 8)) & 0xFF); 
   }
 }
 

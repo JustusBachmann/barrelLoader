@@ -9,9 +9,9 @@
 #include <Wire.h>
 #endif
 
-#define encoderCLK 49   // Encoder CLK
-#define encoderDT 51   // Encoder DT
-#define encoderSW 53   // Encoder Taster
+#define ENCODER_CLK 49
+#define ENCODER_DT 51
+#define ENCODER_SW 53
 #define lengthOfLong sizeof(long)
 
 #define motorInterfaceType AccelStepper::DRIVER
@@ -19,21 +19,50 @@
 #define Y_DRV_DIR 8
 #define Z_DRV_DIR 6
 
+#define E0_DRV_DIR 28
+#define E1_DRV_DIR 34
+
 #define X_DRV_STEP 11
 #define Y_DRV_STEP 9
 #define Z_DRV_STEP 7
+
+#define E0_DRV_STEP 26
+#define E1_DRV_STEP 36
 
 #define X_DRV_ENABLE 38
 #define Y_DRV_ENABLE 56
 #define Z_DRV_ENABLE 11
 
+#define E0_DRV_ENABLE 24
+#define E1_DRV_ENABLE 30
+
 #define X_ENDSTOP 14
 #define Y_ENDSTOP 15
 #define Z_ENDSTOP 16
 
+#define E0_ENDSTOP 15
+
+#define MESA_OUT1 22
+#define MESA_OUT2 23
+#define MESA_OUT3 25
+
+#define MESA_IN1 29
+#define MESA_IN2 30
+#define MESA_IN3 31
+#define MESA_IN4 32
+
+#define RELAIS1 26
+#define RELAIS2 27
+#define RELAIS3 28
+
 #define HOMING_SPEED 2500
 #define PROGRAM_SPEED 1000
 #define ACCELERATION 750
+
+#define STEP_SIZE 50 //200 steps = 360°
+#define DELAY_BETWEEN_STEPS 1000 //1000 = 1s
+#define DELAY_READ_ENCODER 2
+
 
 #define MAX_MENU_ITEMS 5
 #define MAX_MENU_POSITIONS 15
@@ -41,6 +70,7 @@
 #define MAX_MENU_PROGRAMS 5
 #define MAX_HISTORY 10
 #define linesPerPage 8
+
 
 enum AxisEnum {
   X_AXIS,
@@ -192,14 +222,16 @@ unsigned long encoderDTLowTime = 0;
 bool buttonPressed = false;  
 bool encoderCLKLowDetected = false;
 bool encoderDTLowDetected = false;
-long delayMillis = 2;
 long lastMillis = millis();
 
-int stepSize = 50; //200 steps = 360°
 
 AccelStepper stepperX(motorInterfaceType, X_DRV_STEP, X_DRV_DIR);
 AccelStepper stepperY(motorInterfaceType, Y_DRV_STEP, Y_DRV_DIR);
 AccelStepper stepperZ(motorInterfaceType, Z_DRV_STEP, Z_DRV_DIR);
+
+AccelStepper stepperE0(motorInterfaceType, E0_DRV_STEP, E0_DRV_DIR);
+AccelStepper stepperE1(motorInterfaceType, E1_DRV_STEP, E1_DRV_DIR);
+
 MultiStepper steppersXYZ;
 MultiStepper steppersYZ;
 MultiStepper steppersXZ;

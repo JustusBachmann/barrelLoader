@@ -1,20 +1,36 @@
 void setup() {
   Serial.begin(115200);
-  pinMode(encoderCLK, INPUT_PULLUP);
-  pinMode(encoderDT,  INPUT_PULLUP);
-  pinMode(encoderSW,  INPUT_PULLUP);
+  
+  pinMode(ENCODER_CLK, INPUT_PULLUP);
+  pinMode(ENCODER_DT,  INPUT_PULLUP);
+  pinMode(ENCODER_SW,  INPUT_PULLUP);
   
   pinMode(X_DRV_ENABLE, OUTPUT);
   pinMode(Y_DRV_ENABLE, OUTPUT);
   pinMode(Z_DRV_ENABLE, OUTPUT);
-
-  digitalWrite(X_DRV_ENABLE, LOW); 
-  digitalWrite(Y_DRV_ENABLE, LOW); 
-  digitalWrite(Z_DRV_ENABLE, LOW); 
+  pinMode(E0_DRV_ENABLE, OUTPUT);
+  pinMode(E1_DRV_ENABLE, OUTPUT);
 
   pinMode(X_ENDSTOP, INPUT_PULLUP);
   pinMode(Y_ENDSTOP, INPUT_PULLUP);
   pinMode(Z_ENDSTOP, INPUT_PULLUP);
+  pinMode(E0_ENDSTOP, INPUT_PULLUP);
+
+  pinMode(MESA_OUT1, OUTPUT);
+  pinMode(MESA_OUT2, OUTPUT);
+  pinMode(MESA_OUT3, OUTPUT);
+  pinMode(RELAIS1, OUTPUT);
+  pinMode(RELAIS2, OUTPUT);
+  pinMode(RELAIS3, OUTPUT);
+
+  pinMode(MESA_IN1, INPUT);
+  pinMode(MESA_IN2, INPUT);
+  pinMode(MESA_IN3, INPUT);
+  pinMode(MESA_IN4, INPUT);
+
+  setLow(X_DRV_ENABLE);
+  setLow(Y_DRV_ENABLE);
+  setLow(Z_DRV_ENABLE);
 
   stepperX.setMaxSpeed(PROGRAM_SPEED);
   stepperX.setAcceleration(ACCELERATION);
@@ -42,6 +58,14 @@ void setup() {
   Program placeBarrel = {"Place Barrel", &placeBarrelFunc};
   selectProgramMenu.programs[0] = &placeBarrel;
   selectProgramMenu.programsCount += 1;
+
+  Program loadBarrel = {"Load Barrel", &barrelLoadFunc};
+  selectProgramMenu.programs[1] = &loadBarrel;
+  selectProgramMenu.programsCount += 1;
+
+  Program peakTip = {"Peak Tip", &peakTipFunc};
+  selectProgramMenu.programs[2] = &peakTip;
+  selectProgramMenu.programsCount += 1;
   
   Program clearEeprom = {"Clear EEPROM", &clearEEPROM};
   settingsMenu.programs[0] = &clearEeprom;
@@ -61,14 +85,14 @@ void setup() {
 }
 
 void loop() {
-  if (millis() - lastMillis >= delayMillis) {
+  if (millis() - lastMillis >= DELAY_READ_ENCODER) {
     lastMillis = millis();
-    if (digitalRead(encoderCLK) == LOW && !encoderCLKLowDetected) {
+    if (digitalRead(ENCODER_CLK) == LOW && !encoderCLKLowDetected) {
       encoderCLKLowDetected = true;
       encoderCLKLowTime = millis(); 
    }
 
-    if (digitalRead(encoderDT) == LOW && !encoderDTLowDetected) {
+    if (digitalRead(ENCODER_DT) == LOW && !encoderDTLowDetected) {
       encoderDTLowDetected = true;
       encoderDTLowTime = millis();
     }
@@ -81,15 +105,12 @@ void loop() {
     case SETPOSITION:
       if (currentPosition != nullptr) {
         AccelStepper* stepper = getStepperForAxis(currentPosition->axis);
-        if (digitalRead(encoderSW) == LOW) {
+        if (digitalRead(ENCODER_SW) == LOW) {
           waitForButtonRelease();
           while (!destinationReached(stepper)) {
             stepper->run();
           }
-          saveToEEPROM();
-          state = SETTING;
-          draw(renderMenu);
-          currentPosition = nullptr;
+          saveNewPosition();
         }
 
         if (encoderCLKLowDetected && encoderDTLowDetected) {
@@ -108,7 +129,7 @@ void loop() {
       return;
       
     default:
-      if (digitalRead(encoderSW) == LOW) {
+      if (digitalRead(ENCODER_SW) == LOW) {
         waitForButtonRelease();
         handleButtonPressedMenu();
       }

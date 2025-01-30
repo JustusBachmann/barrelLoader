@@ -22,7 +22,7 @@ void goBack() {
 }
 
 void setPosition(int dir) {
-  newPosition.value += stepSize * dir;
+  newPosition.value += STEP_SIZE * dir;
   newPosition.axis = currentPosition->axis;
   step(&newPosition);
 }
