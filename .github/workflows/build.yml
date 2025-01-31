@@ -37,7 +37,7 @@ jobs:
           mkdir -p build
           arduino-cli compile --fqbn arduino:avr:mega --output-dir ./build .
 
-      # Upload compiled firmware as an artifact using v4
+      # Upload compiled firmware as an artifact
       - name: Upload Compiled Firmware
         uses: actions/upload-artifact@v4
         with:
