@@ -44,7 +44,7 @@ void step(Position* pos) {
   AccelStepper* stepper = getStepperForAxis(pos->axis);
 
   stepper->moveTo(pos->value);
-  stepper->runToPosition();
+  stepper->runSpeedToPosition();
 }
 
 
