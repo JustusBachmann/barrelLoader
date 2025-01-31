@@ -19,7 +19,7 @@ jobs:
       - name: Setup Arduino CLI
         uses: arduino/setup-arduino-cli@v2
         with:
-          version: "latest"
+          version: "v1.1.1"
 
       - name: Update Core Index
         run: arduino-cli core update-index
