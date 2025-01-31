@@ -41,5 +41,5 @@ jobs:
       - name: Upload Compiled Firmware
         uses: actions/upload-artifact@v4
         with:
-          name: firmware-build
+          name: firmware
           path: ./build/
