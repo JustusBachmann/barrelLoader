@@ -84,49 +84,84 @@ void barrelLoadFunc() {
 }
 
 void peakTipFunc() {
+  Position* X2;
+  Position* X3;
+
+  switch(activeProgram->peakMode) {
+    case PEAK_55:
+      X2 = &peak55X2;
+      X3 = &peak55X3;
+      break;
+
+    case PEAK_60:
+      X2 = &peak60X2;
+      X3 = &peak60X3;
+      break;
+
+    case SINGLE_SIDE:
+      X2 = &singleSideX2;
+      break;
+
+    default:
+      Serial.println("no peak configured");
+      return;
+  }
+
   setHigh(MESA_IN1);
+  Serial.println("Mesa in 1 high");
   delay(DELAY_BETWEEN_STEPS);
 
   setLow(MESA_OUT1);
+  Serial.println("Mesa out 1 low");
   delay(DELAY_BETWEEN_STEPS);
 
   barrelLoadFunc();
+  Serial.println("barrel loaded");
   delay(DELAY_BETWEEN_STEPS);
 
   Position* pos1[] = {&X1, &Y2, &Z2};
   stepXYZ(pos1);
+  Serial.println("drived position 1");
   delay(DELAY_BETWEEN_STEPS);
 
   // TODO request open chuck
 
-  // Position* pos2 = &X2; // welches X2? singleSide, peak55 oder peak60? oder je ein Programm?
-  // loadPosition(pos2);
-  // step(pos2);
-  // delay(DELAY_BETWEEN_STEPS);
+  Position* pos2 = X2;
+  loadPosition(pos2);
+  step(pos2);
+  Serial.println("drived position 2");
+  delay(DELAY_BETWEEN_STEPS);
 
   // TODO request close chuck
 
   setLow(RELAIS1);
+  Serial.println("relais 1 low");
   delay(DELAY_BETWEEN_STEPS);
 
   Position* pos3[] = {&X1, &Y0, &Z0};
   stepXYZ(pos3);
+  Serial.println("drived position 3");
   delay(DELAY_BETWEEN_STEPS);
 
   setHigh(MESA_OUT1);
+  Serial.println("Mesa out 1 high");
   delay(DELAY_BETWEEN_STEPS);
 
-  setHigh(MESA_IN1); // ???????? ist schon high
+  setHigh(MESA_IN1); 
+  Serial.println("Mesa in 1 high");
   delay(DELAY_BETWEEN_STEPS);
 
   setLow(MESA_OUT1);
+  Serial.println("Mesa out 1 low");
   delay(DELAY_BETWEEN_STEPS);
 
-  // Position* pos4[] = {&X2, &Y2, &Z2}; // welches X2? singleSide, peak55 oder peak60? oder je ein Programm?
-  // stepXYZ(pos4);
-  // delay(DELAY_BETWEEN_STEPS);
+  Position* pos4[] = {X2, &Y2, &Z2};
+  stepXYZ(pos4);
+  Serial.println("drived position 4");
+  delay(DELAY_BETWEEN_STEPS);
 
   setHigh(RELAIS1);
+  Serial.println("relais 1 high");
   delay(DELAY_BETWEEN_STEPS);
 
   // TODO request open chuck
@@ -134,7 +169,9 @@ void peakTipFunc() {
   Position* pos5 = &X1;
   loadPosition(pos5);
   step(pos5);
+  Serial.println("drived position 5");
   delay(DELAY_BETWEEN_STEPS);
 
   placeBarrelFunc();
+  Serial.println("barrel placed");
 }

@@ -97,9 +97,17 @@ struct Position {
   int eepromOffset;
 };
 
+enum Peak {
+  PEAK_55,
+  PEAK_60,
+  SINGLE_SIDE,
+  NONE
+};
+
 struct Program {
   const char* name;
   void (*programFunction)();
+  Peak peakMode;
 };
 
 struct MenuPage {
@@ -133,6 +141,7 @@ struct MenuPage {
 };
 
 State state = IDLE;
+Peak peak = PEAK_55;
 
 Axis X = {X_AXIS, X_ENDSTOP};
 Axis Y = {Y_AXIS, Y_ENDSTOP};

@@ -1,6 +1,6 @@
 void setup() {
   Serial.begin(115200);
-  
+
   pinMode(ENCODER_CLK, INPUT_PULLUP);
   pinMode(ENCODER_DT,  INPUT_PULLUP);
   pinMode(ENCODER_SW,  INPUT_PULLUP);
@@ -41,6 +41,12 @@ void setup() {
   stepperZ.setMaxSpeed(PROGRAM_SPEED);
   stepperZ.setAcceleration(ACCELERATION);
 
+  stepperE0.setMaxSpeed(PROGRAM_SPEED);
+  stepperE0.setAcceleration(ACCELERATION);
+
+  stepperE1.setMaxSpeed(PROGRAM_SPEED);
+  stepperE1.setAcceleration(ACCELERATION);
+
   steppersXYZ.addStepper(stepperX);
   steppersXYZ.addStepper(stepperY);
   steppersXYZ.addStepper(stepperZ);
@@ -51,27 +57,35 @@ void setup() {
   steppersXZ.addStepper(stepperX);
   steppersXZ.addStepper(stepperZ);
 
-  Program homing = {"Homing", &driveHome};
+  Program homing = {"Homing", &driveHome, NONE};
   mainMenu.programs[0] = &homing;
   mainMenu.programsCount += 1;
 
-  Program placeBarrel = {"Place Barrel", &placeBarrelFunc};
+  Program placeBarrel = {"Place Barrel", &placeBarrelFunc, NONE};
   selectProgramMenu.programs[0] = &placeBarrel;
   selectProgramMenu.programsCount += 1;
 
-  Program loadBarrel = {"Load Barrel", &barrelLoadFunc};
+  Program loadBarrel = {"Load Barrel", &barrelLoadFunc, NONE};
   selectProgramMenu.programs[1] = &loadBarrel;
   selectProgramMenu.programsCount += 1;
 
-  Program peakTip = {"Peak Tip", &peakTipFunc};
-  selectProgramMenu.programs[2] = &peakTip;
+  Program peak55Tip = {"Peak 55 Tip", &peakTipFunc, PEAK_55};
+  selectProgramMenu.programs[2] = &peak55Tip;
+  selectProgramMenu.programsCount += 1;
+
+  Program peak60Tip = {"Peak 60 Tip", &peakTipFunc, PEAK_60};
+  selectProgramMenu.programs[3] = &peak60Tip;
+  selectProgramMenu.programsCount += 1;
+
+  Program peakSiSiTip = {"Peak Single Side", &peakTipFunc, SINGLE_SIDE};
+  selectProgramMenu.programs[4] = &peakSiSiTip;
   selectProgramMenu.programsCount += 1;
   
-  Program clearEeprom = {"Clear EEPROM", &clearEEPROM};
+  Program clearEeprom = {"Clear EEPROM", &clearEEPROM, NONE};
   settingsMenu.programs[0] = &clearEeprom;
   settingsMenu.programsCount += 1;
 
-  Program findHomePos = {"Find Home", &findHome};
+  Program findHomePos = {"Find Home", &findHome, NONE};
   
   u8g2.begin();
 
