@@ -48,13 +48,39 @@ void step(Position* pos) {
 }
 
 
-AccelStepper* getStepperForAxis(Axis* axis) {
-  switch(axis->axis) {
-    case X_AXIS:
-      return &stepperX;
-    case Y_AXIS:
-      return &stepperY;
-    case Z_AXIS:
-      return &stepperZ;
+AccelStepper* getStepperForAxis(Axis axis) {
+  switch(axis) {
+    case Axis::X:
+      return &steppers[0];
+    case Axis::Y:
+      return &steppers[1];
+    case Axis::Z:
+      return &steppers[2];
   }
+}
+
+bool destinationReached(AccelStepper* stepper) {
+  if (stepper->distanceToGo() == 0) {
+    return true;
+  }
+  return false;
+}
+
+void initializeSteppers() {
+  for (uint8_t i = 0; i < 5; i++) {
+    steppers[i] = AccelStepper(motorInterfaceType, DRV_STEP[i], DRV_DIR[i]);
+    steppers[i].setMaxSpeed(PROGRAM_SPEED);
+    steppers[i].setAcceleration(ACCELERATION);
+  }
+
+  steppersXYZ.addStepper(steppers[0]);
+  steppersXYZ.addStepper(steppers[1]);
+  steppersXYZ.addStepper(steppers[2]);
+
+  steppersYZ.addStepper(steppers[1]);
+  steppersYZ.addStepper(steppers[2]);
+
+  steppersXZ.addStepper(steppers[0]);
+  steppersXZ.addStepper(steppers[1]);
+
 }

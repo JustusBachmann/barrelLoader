@@ -1,8 +1,5 @@
 void resetDetection() {
-  encoderCLKLowDetected = false;
-  encoderDTLowDetected = false;
-  encoderCLKLowTime = 0;
-  encoderDTLowTime = 0;
+  encoderState = {0, 0, false, false, false};
 }
 
 void setHigh(int pin) {
@@ -27,14 +24,7 @@ void waitForButtonRelease() {
       lastDebounceTime = millis();
     }
   }
-  buttonPressed = false;
-}
-
-bool destinationReached(AccelStepper* stepper) {
-  if (stepper->distanceToGo() == 0) {
-    return true;
-  }
-  return false;
+  encoderState.buttonPressed = false;
 }
 
 void saveNewPosition() {
@@ -42,7 +32,7 @@ void saveNewPosition() {
     currentPosition->value = newPosition.value;
     saveToEEPROM(currentPosition);
     currentPosition = nullptr;
-    state = SETTING;
+    state = State::IDLE;
     draw(renderMenu);
   }
 }
@@ -57,30 +47,26 @@ void handleButtonPressedMenu() {
     int selectedPositionItem = selectedIndex - activePage->subMenusCount;
     if (selectedPositionItem < activePage->positionsCount) {
       readPositionFromEEPROM(activePage->positions[selectedPositionItem]);
-      if (state == SETTING) {
-        draw(renderPosition);
-        state = SETPOSITION;
-        step(currentPosition);
-      }
+      draw(renderPosition);
+      state = State::SETPOSITION;
+      step(currentPosition);
       return;
     }
 
     int selectedProgramItem = selectedPositionItem - activePage->positionsCount;
     if (selectedProgramItem < activePage->programsCount) {
-      state = RUNNING;
-      activeProgram = activePage->programs[selectedProgramItem];
-      draw(renderProgram);
-      activeProgram->programFunction();
-      draw(renderMenu);
-      activeProgram = nullptr;
-      state = IDLE;
+      if (checkCRC() || strcmp(activePage->programs[selectedProgramItem]->name, "Clear EEPROM") == 0) {
+        state = State::RUNNING;
+        activeProgram = activePage->programs[selectedProgramItem];
+        draw(renderProgram);
+        activeProgram->programFunction();
+        draw(renderMenu);
+        activeProgram = nullptr;
+        state = State::IDLE;
+      }
       return;
     }
 
-    int selectedMenuItem = selectedProgramItem - activePage->programsCount;
-    if (strcmp(activePage->items[selectedMenuItem], "Back") == 0) {
-      goBack();
-      draw(renderMenu);
-      return;
-    }
+    goBack();
+    draw(renderMenu);
 }

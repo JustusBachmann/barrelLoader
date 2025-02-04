@@ -3,25 +3,19 @@ void changePage(MenuPage* newActive) {
       navigationHistory[++historyIndex] = activePage; 
   }
   activePage = newActive;
-  if (activePage->title == "Settings") {
-    state = SETTING;
-  }
   selectedIndex = 0;
   topIndex = 0;
 }
 
 void goBack() {
   if (historyIndex >= 0) {
-    if (activePage->title == "Settings") {
-      state = IDLE;
-    }
     activePage = navigationHistory[historyIndex--];
     selectedIndex = 0;
     topIndex = 0; 
   }
 }
 
-void setPosition(int dir) {
+void setPosition(int8_t dir) {
   newPosition.value += STEP_SIZE * dir;
   newPosition.axis = currentPosition->axis;
   step(&newPosition);

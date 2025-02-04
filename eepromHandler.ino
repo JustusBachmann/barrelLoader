@@ -1,22 +1,29 @@
 void clearEEPROM() {
   draw(renderLoadingScreen);
-  long f = 0; 
-  for (int i = 0; i < lengthOfLong; i++) {
-    f |= ((long)EEPROM.read(i)) << (i * 8);
+
+  // Clear all EEPROM except the first few bytes reserved for CRC
+  for (int i = lengthOfLong; i < EEPROM.length(); i++) {
+    EEPROM.write(i, 0); 
   }
-  Serial.println(f);
-  
-  if (f != eeprom_crc()) {
-    for (int i = 1; i < EEPROM.length(); i++) {
-      EEPROM.write(i, 0); 
-    }
-    for (int i = 0; i < lengthOfLong; i++) {
-      EEPROM.write(i, (eeprom_crc() >> (i * 8)) & 0xFF); 
-    }
+
+  // Write CRC to the first few bytes
+  for (int i = 0; i < lengthOfLong; i++) {
+    EEPROM.write(i, (eeprom_crc() >> (i * 8)) & 0xFF); 
   }
   
   goBack();
   draw(renderMenu);
+}
+
+bool checkCRC() {
+  unsigned long f = 0; 
+  // Read stored CRC from the first few bytes of EEPROM
+  for (int i = 0; i < lengthOfLong; i++) {
+    f |= ((unsigned long)EEPROM.read(i)) << (i * 8);
+  }
+  
+  // Compare stored CRC with calculated CRC
+  return f == eeprom_crc();
 }
 
 unsigned long eeprom_crc(void) {
@@ -28,8 +35,9 @@ unsigned long eeprom_crc(void) {
   };
 
   unsigned long crc = ~0L;
-  
-  for (int index = 0; index < EEPROM.length(); ++index) {
+
+  // Calculate CRC for all data except reserved bytes
+  for (int index = lengthOfLong; index < EEPROM.length(); ++index) {
     uint8_t data = EEPROM.read(index); 
     crc = crc_table[(crc ^ data) & 0x0F] ^ (crc >> 4);
     crc = crc_table[(crc ^ (data >> 4)) & 0x0F] ^ (crc >> 4);
@@ -48,13 +56,11 @@ void saveToEEPROM(Position* pos) {
   for (int i = 0; i < lengthOfLong; i++) {
     EEPROM.write(i, (crc >> (i * 8)) & 0xFF); 
   }
+  pos->value = 0;
 }
 
 void readPositionFromEEPROM(Position* pos) {
-  pos->value = 0; 
-  for (int i = 0; i < lengthOfLong; i++) {
-    pos->value |= ((long)EEPROM.read(i + pos->eepromOffset * lengthOfLong)) << (i * 8);
-  }
+  loadPosition(pos);
   
   currentPosition = pos;
   newPosition.value = currentPosition->value;

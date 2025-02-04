@@ -1,4 +1,4 @@
-void clampAndScroll(int direction) {
+void clampAndScroll(int8_t direction) {
   if (selectedIndex + direction >= 0 && selectedIndex + direction < activePageLength()) {
     selectedIndex += direction;
   }
@@ -21,16 +21,16 @@ void renderMenu() {
   u8g2.setFont(u8g2_font_ncenB08_tr);
 
   u8g2.setCursor(0, 10);
-  u8g2.print(activePage->title);
+  printStringFromProgmem(activePage->title);
 
   u8g2.setCursor(0, 12);
-  u8g2.print("___________________________");
+  u8g2.drawLine(0, 12, 128, 12);
 
-  for (int i = 0; i <= linesPerPage; i++) {
-    int itemIndex = topIndex + i;
+  for (uint8_t i = 0; i <= linesPerPage; i++) {
+    uint8_t itemIndex = topIndex + i;
     if (itemIndex >= activePageLength()) break;
 
-    int yPos = 24 + (i * 12); 
+    uint16_t yPos = 24 + (i * 12); 
 
     if (itemIndex == selectedIndex) {
       u8g2.setDrawColor(1);
@@ -42,13 +42,13 @@ void renderMenu() {
 
     u8g2.setCursor(2, yPos);
     if (itemIndex < activePage->subMenusCount) {
-      u8g2.print(activePage->subMenus[itemIndex]->title);
+      printStringFromProgmem(activePage->subMenus[itemIndex]->title);
     } else if (itemIndex - activePage->subMenusCount < activePage->positionsCount) {
       u8g2.print(activePage->positions[itemIndex - activePage->subMenusCount]->name);
     } else if (itemIndex - activePage->subMenusCount - activePage->positionsCount < activePage->programsCount) {
       u8g2.print(activePage->programs[itemIndex - activePage->subMenusCount - activePage->positionsCount]->name);
-    } else {
-      u8g2.print(activePage->items[itemIndex - activePage->subMenusCount - activePage->positionsCount - activePage->programsCount]);
+    } else if (activePage->back != nullptr) {
+      printStringFromProgmem(activePage->back);
     }
   }
 
@@ -83,8 +83,7 @@ void renderPosition() {
   u8g2.setCursor(0, 10);
   u8g2.print(currentPosition->name);
 
-  u8g2.setCursor(0, 12);
-  u8g2.print("___________________________");
+  u8g2.drawLine(0, 12, 128, 12);
 
   u8g2.setCursor(5, 24);
   u8g2.print("old: ");
@@ -92,4 +91,10 @@ void renderPosition() {
   u8g2.setCursor(5, 36);
   u8g2.print("new: ");
   u8g2.print(newPosition.value);
+}
+
+void printStringFromProgmem(const char* str) {
+    char buffer[30];
+    strcpy_P(buffer, str);
+    u8g2.print(buffer);
 }
