@@ -46,36 +46,56 @@ unsigned long eeprom_crc(void) {
   return ~crc; 
 }
 
-void saveToEEPROM(Position* pos) {
-  for (int i = 0; i < lengthOfLong; i++) {
-    EEPROM.write(i + pos->eepromOffset * lengthOfLong, 
-                  (pos->value >> (i * 8)) & 0xFF); 
-  }
+// void saveToEEPROM(DynPosition* dynPos) {
+//   for (int i = 0; i < lengthOfLong; i++) {
+//     EEPROM.write(i + dynPos->pos->eepromOffset * lengthOfLong, 
+//                   (dynPos->value >> (i * 8)) & 0xFF); 
+//   }
 
-  unsigned long crc = eeprom_crc();
-  for (int i = 0; i < lengthOfLong; i++) {
-    EEPROM.write(i, (crc >> (i * 8)) & 0xFF); 
-  }
-  pos->value = 0;
+//   unsigned long crc = eeprom_crc();
+//   for (int i = 0; i < lengthOfLong; i++) {
+//     EEPROM.write(i, (crc >> (i * 8)) & 0xFF); 
+//   }
+//   dynPos->value = 0;
+// }
+
+// void readPositionFromEEPROM(Position* pos, DynPosition* dynPos) {
+//   loadPosition(pos, dynPos);
+//   newPosition.value = dynPos->value;
+//   newPosition.axis = dynPos->axis;
+// }
+
+// void loadPosition(Position* pos, DynPosition* dynPos) {
+//   dynPos->pos = pos;
+//   dynPos->value = 0; // Clear value before reading
+//   for (int i = 0; i < lengthOfLong; i++) {
+//     dynPos->value |= ((long)EEPROM.read(i + pos->eepromOffset * lengthOfLong)) << (i * 8);
+//   }
+// }
+
+// void loadAllPositions(Position* positions[], DynPosition* dynPositions[], int count) {
+//   for (int i = 0; i < count; i++) {
+//     loadPosition(positions[i], dynPositions[i]);
+//   }
+// }
+
+void loadActivePage(MenuPage* menuPtr) {
+  memcpy_P(&activePage, menuPtr, sizeof(MenuPage));
+  activePageLength = (activePage.back == nullptr ? 0 : 1) + activePage.subMenusCount + activePage.positionsCount + activePage.programsCount;
 }
 
-void readPositionFromEEPROM(Position* pos) {
-  loadPosition(pos);
-  
-  currentPosition = pos;
-  newPosition.value = currentPosition->value;
-  newPosition.axis = currentPosition->axis;
+void loadMenuPageFromProgmem(MenuPage* page, MenuPage* menuPtr) {
+  memcpy_P(&page, menuPtr, sizeof(MenuPage));
 }
 
-void loadPosition(Position* pos) {
-   pos->value = 0; // Clear value before reading
-   for (int i = 0; i < lengthOfLong; i++) {
-     pos->value |= ((long)EEPROM.read(i + pos->eepromOffset * lengthOfLong)) << (i * 8);
-   }
+const MenuPage* getSubMenuFromProgmem(const MenuPage* const* subMenusArray, uint8_t index) {
+    return (const MenuPage*)pgm_read_ptr(&subMenusArray[index]);
 }
 
-void loadAllPositions(Position* positions[], int count) {
-  for (int i = 0; i < count; i++) {
-    loadPosition(positions[i]);
-  }
+const Program* getProgramFromProgmem(const Program* const* programsArray, uint8_t index) {
+    return (const Program*)pgm_read_ptr(&programsArray[index]);
+}
+
+const Position* getPositionFromProgmem(const Position* const* positionsArray, uint8_t index) {
+    return (const Position*)pgm_read_ptr(&positionsArray[index]);
 }

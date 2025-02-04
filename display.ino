@@ -1,5 +1,5 @@
 void clampAndScroll(int8_t direction) {
-  if (selectedIndex + direction >= 0 && selectedIndex + direction < activePageLength()) {
+  if (selectedIndex + direction >= 0 && selectedIndex + direction < activePageLength) {
     selectedIndex += direction;
   }
 
@@ -21,14 +21,14 @@ void renderMenu() {
   u8g2.setFont(u8g2_font_ncenB08_tr);
 
   u8g2.setCursor(0, 10);
-  printStringFromProgmem(activePage->title);
+  printStringFromProgmem(activePage.title);
 
   u8g2.setCursor(0, 12);
   u8g2.drawLine(0, 12, 128, 12);
 
   for (uint8_t i = 0; i <= linesPerPage; i++) {
     uint8_t itemIndex = topIndex + i;
-    if (itemIndex >= activePageLength()) break;
+    if (itemIndex >= activePageLength) break;
 
     uint16_t yPos = 24 + (i * 12); 
 
@@ -41,14 +41,17 @@ void renderMenu() {
     }
 
     u8g2.setCursor(2, yPos);
-    if (itemIndex < activePage->subMenusCount) {
-      printStringFromProgmem(activePage->subMenus[itemIndex]->title);
-    } else if (itemIndex - activePage->subMenusCount < activePage->positionsCount) {
-      u8g2.print(activePage->positions[itemIndex - activePage->subMenusCount]->name);
-    } else if (itemIndex - activePage->subMenusCount - activePage->positionsCount < activePage->programsCount) {
-      u8g2.print(activePage->programs[itemIndex - activePage->subMenusCount - activePage->positionsCount]->name);
-    } else if (activePage->back != nullptr) {
-      printStringFromProgmem(activePage->back);
+    if (itemIndex < activePage.subMenusCount) {
+      const MenuPage* subMenuPtr = getSubMenuFromProgmem(activePage.subMenus, itemIndex);
+      printSubMenuFromProgmem(subMenuPtr);
+    } else if (itemIndex - activePage.subMenusCount < activePage.positionsCount) {
+      const Position* positionPtr = getPositionFromProgmem(activePage.positions, itemIndex - activePage.subMenusCount - activePage.positionsCount);
+      printPositionFromProgmem(positionPtr);
+    } else if (itemIndex - activePage.subMenusCount - activePage.positionsCount < activePage.programsCount) {
+      const Program* programPtr = getProgramFromProgmem(activePage.programs, itemIndex - activePage.subMenusCount);
+      printProgramFromProgmem(programPtr);
+    } else if (activePage.back != nullptr) {
+      printStringFromProgmem(activePage.back);
     }
   }
 
@@ -81,13 +84,13 @@ void renderPosition() {
   u8g2.setFont(u8g2_font_ncenB08_tr);
 
   u8g2.setCursor(0, 10);
-  u8g2.print(currentPosition->name);
+  u8g2.print(currentPosition.pos->name);
 
   u8g2.drawLine(0, 12, 128, 12);
 
   u8g2.setCursor(5, 24);
   u8g2.print("old: ");
-  u8g2.print(currentPosition->value);
+  u8g2.print(currentPosition.value);
   u8g2.setCursor(5, 36);
   u8g2.print("new: ");
   u8g2.print(newPosition.value);
@@ -97,4 +100,22 @@ void printStringFromProgmem(const char* str) {
     char buffer[30];
     strcpy_P(buffer, str);
     u8g2.print(buffer);
+}
+
+void printSubMenuFromProgmem(MenuPage* subMenuPtr) {
+  MenuPage subMenu;
+  memcpy_P(&subMenu, subMenuPtr, sizeof(MenuPage));
+  printStringFromProgmem(subMenu.title);
+}
+
+void printProgramFromProgmem(Program* programPtr) {
+  Program program;
+  memcpy_P(&program, programPtr, sizeof(Program));
+  printStringFromProgmem(program.name);
+}
+
+void printPositionFromProgmem(Position* positionPtr) {
+  Position position;
+  memcpy_P(&position, positionPtr, sizeof(Position));
+  printStringFromProgmem(position.name);
 }

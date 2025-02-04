@@ -26,37 +26,8 @@ void setup() {
     pinMode(MESA_IN[i], INPUT);
   }
 
-  initializeSteppers();
-
-
-  Program homing = {"Homing", &findHome, Peak::NONE};
-  mainMenu.programs[0] = &homing;
-  mainMenu.programsCount += 1;
-
-  // Program placeBarrel = {"Place Barrel", &placeBarrelFunc, NONE};
-  // selectProgramMenu.programs[0] = &placeBarrel;
-  // selectProgramMenu.programsCount += 1;
-
-  // Program loadBarrel = {"Load Barrel", &barrelLoadFunc, NONE};
-  // selectProgramMenu.programs[1] = &loadBarrel;
-  // selectProgramMenu.programsCount += 1;
-
-  Program peak55Tip = {"Peak 55 Tip", &peakTipFunc, Peak::PEAK_55};
-  selectProgramMenu.programs[0] = &peak55Tip;
-  selectProgramMenu.programsCount += 1;
-
-  Program peak60Tip = {"Peak 60 Tip", &peakTipFunc, Peak::PEAK_60};
-  selectProgramMenu.programs[1] = &peak60Tip;
-  selectProgramMenu.programsCount += 1;
-
-  Program peakSiSiTip = {"Peak Single Side", &peakTipFunc, Peak::SINGLE_SIDE};
-  selectProgramMenu.programs[2] = &peakSiSiTip;
-  selectProgramMenu.programsCount += 1;
-  
-  Program clearEeprom = {"Clear EEPROM", &clearEEPROM, Peak::NONE};
-  settingsMenu.programs[0] = &clearEeprom;
-  settingsMenu.programsCount += 1; 
-
+  // initializeSteppers();
+  loadActivePage(&mainMenu);
   u8g2.begin();
 
   draw(renderMenu);
@@ -84,13 +55,13 @@ void loop() {
       return;
 
     case State::SETPOSITION:
-      if (currentPosition != nullptr) {
-        AccelStepper* stepper = getStepperForAxis(currentPosition->axis);
+      if (currentPosition.pos != nullptr) {
+        // AccelStepper* stepper = getStepperForAxis(currentPosition->axis);
         if (digitalRead(ENCODER_SW) == LOW) {
           waitForButtonRelease();
-          while (!destinationReached(stepper)) {
-            stepper->run();
-          }
+          // while (!destinationReached(stepper)) {
+          //   stepper->run();
+          // }
           saveNewPosition();
         }
 
@@ -105,7 +76,7 @@ void loop() {
           resetDetection();
           draw(renderPosition);
         }
-        stepper->run();
+        // stepper->run();
       }
       return;
       

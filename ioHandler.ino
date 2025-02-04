@@ -28,36 +28,37 @@ void waitForButtonRelease() {
 }
 
 void saveNewPosition() {
-  if (currentPosition != nullptr) {
-    currentPosition->value = newPosition.value;
-    saveToEEPROM(currentPosition);
-    currentPosition = nullptr;
+  if (currentPosition.pos != nullptr) {
+    currentPosition.value = newPosition.value;
+    // saveToEEPROM(currentPosition);
+    currentPosition = {nullptr, 0};
     state = State::IDLE;
     draw(renderMenu);
   }
 }
 
 void handleButtonPressedMenu() {
-    if (selectedIndex < activePage->subMenusCount) {
-      changePage(activePage->subMenus[selectedIndex]);
+    if (selectedIndex < activePage.subMenusCount) {
+      const MenuPage* subMenuPtr = getSubMenuFromProgmem(activePage.subMenus, selectedIndex);
+      changePage(subMenuPtr);
       draw(renderMenu);
       return;
     }
 
-    int selectedPositionItem = selectedIndex - activePage->subMenusCount;
-    if (selectedPositionItem < activePage->positionsCount) {
-      readPositionFromEEPROM(activePage->positions[selectedPositionItem]);
+    int selectedPositionItem = selectedIndex - activePage.subMenusCount;
+    if (selectedPositionItem < activePage.positionsCount) {
+      // readPositionFromEEPROM(activePage.positions[selectedPositionItem]);
       draw(renderPosition);
       state = State::SETPOSITION;
-      step(currentPosition);
+      // step(currentPosition);
       return;
     }
 
-    int selectedProgramItem = selectedPositionItem - activePage->positionsCount;
-    if (selectedProgramItem < activePage->programsCount) {
-      if (checkCRC() || strcmp(activePage->programs[selectedProgramItem]->name, "Clear EEPROM") == 0) {
+    int selectedProgramItem = selectedPositionItem - activePage.positionsCount;
+    if (selectedProgramItem < activePage.programsCount) {
+      if (checkCRC() || strcmp(activePage.programs[selectedProgramItem]->name, "Clear EEPROM") == 0) {
         state = State::RUNNING;
-        activeProgram = activePage->programs[selectedProgramItem];
+        activeProgram = activePage.programs[selectedProgramItem];
         draw(renderProgram);
         activeProgram->programFunction();
         draw(renderMenu);
