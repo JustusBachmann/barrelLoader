@@ -26,15 +26,20 @@ void setup() {
     pinMode(MESA_IN[i], INPUT);
   }
 
-  // initializeSteppers();
-  loadActivePage(&mainMenu);
   u8g2.begin();
+  loadActivePage(&mainMenu);
+  Program activeProgram;
+  draw(renderProgram);
+  loadProgramFromProgmem(&activeProgram, &clearEepromProg);
+  activeProgram.programFunction();
 
+  initializeSteppers();
   draw(renderMenu);
   state = State::IDLE;
 }
 
 void loop() {
+  delay(1);
   if (millis() - lastMillis >= DELAY_READ_ENCODER) {
     lastMillis = millis();
     if (digitalRead(ENCODER_CLK) == LOW && !encoderState.clkLowDetected) {
@@ -49,38 +54,7 @@ void loop() {
   }
 
   switch(state) {
-    case State::STOP:
-      return;
-    case State::RUNNING:
-      return;
-
-    case State::SETPOSITION:
-      if (currentPosition.pos != nullptr) {
-        // AccelStepper* stepper = getStepperForAxis(currentPosition->axis);
-        if (digitalRead(ENCODER_SW) == LOW) {
-          waitForButtonRelease();
-          // while (!destinationReached(stepper)) {
-          //   stepper->run();
-          // }
-          saveNewPosition();
-        }
-
-        if (encoderState.clkLowDetected && encoderState.dtLowDetected) {
-          if (encoderState.clkLowTime < encoderState.dtLowTime) {
-            setPosition(+1);
-
-          } else if (encoderState.dtLowTime < encoderState.clkLowTime) {
-            setPosition(-1);
-          }
-
-          resetDetection();
-          draw(renderPosition);
-        }
-        // stepper->run();
-      }
-      return;
-      
-    default:
+    case State::IDLE:
       if (digitalRead(ENCODER_SW) == LOW) {
         waitForButtonRelease();
         handleButtonPressedMenu();
@@ -96,6 +70,34 @@ void loop() {
         resetDetection();
         draw(renderMenu);
       }
+      return;
+
+    case State::SETPOSITION:
+      int stepperID = getIntFromAxis(currentPosition.pos->axis);
+      if (digitalRead(ENCODER_SW) == LOW) {
+        waitForButtonRelease();
+        while (!destinationReached(stepperID)) {
+          steppers[stepperID].run();
+        }
+        saveNewPosition();
+      }
+
+      if (encoderState.clkLowDetected && encoderState.dtLowDetected) {
+        if (encoderState.clkLowTime < encoderState.dtLowTime) {
+          setPosition(currentPosition.pos->axis, +1);
+
+        } else if (encoderState.dtLowTime < encoderState.clkLowTime) {
+          setPosition(currentPosition.pos->axis, -1);
+        }
+
+        resetDetection();
+        draw(renderPosition);
+      }
+      // if ()
+      steppers[stepperID].run();
+      return;
+      
+    default:
       return;
   }
 }

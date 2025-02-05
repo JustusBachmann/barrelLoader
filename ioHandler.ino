@@ -27,19 +27,24 @@ void waitForButtonRelease() {
   encoderState.buttonPressed = false;
 }
 
+void setPosition(Axis axis, int8_t dir) {
+  newPosition += STEP_SIZE * dir;
+  step(axis, newPosition);
+}
+
 void saveNewPosition() {
   if (currentPosition.pos != nullptr) {
-    currentPosition.value = newPosition.value;
-    // saveToEEPROM(currentPosition);
-    currentPosition = {nullptr, 0};
-    state = State::IDLE;
-    draw(renderMenu);
+    currentPosition.value = newPosition;
+    saveToEeprom(&currentPosition);
   }
+  currentPosition = {nullptr, 0};
+  state = State::IDLE;
+  draw(renderMenu);
 }
 
 void handleButtonPressedMenu() {
     if (selectedIndex < activePage.subMenusCount) {
-      const MenuPage* subMenuPtr = getSubMenuFromProgmem(activePage.subMenus, selectedIndex);
+      const MenuPage* subMenuPtr = getFromProgmem(activePage.subMenus, selectedIndex);
       changePage(subMenuPtr);
       draw(renderMenu);
       return;
@@ -47,22 +52,28 @@ void handleButtonPressedMenu() {
 
     int selectedPositionItem = selectedIndex - activePage.subMenusCount;
     if (selectedPositionItem < activePage.positionsCount) {
-      // readPositionFromEEPROM(activePage.positions[selectedPositionItem]);
-      draw(renderPosition);
-      state = State::SETPOSITION;
-      // step(currentPosition);
+      if (checkCrc()) {
+        const Position* positionPtr = getFromProgmem(activePage.positions, selectedPositionItem);
+        loadCurrentPosFromEeprom(positionPtr);
+        draw(renderPosition);
+        state = State::SETPOSITION;
+        step(currentPosition.pos->axis, currentPosition.value);
+      }
       return;
     }
 
     int selectedProgramItem = selectedPositionItem - activePage.positionsCount;
     if (selectedProgramItem < activePage.programsCount) {
-      if (checkCRC() || strcmp(activePage.programs[selectedProgramItem]->name, "Clear EEPROM") == 0) {
+      const Program* programPtr = getFromProgmem(activePage.programs, selectedProgramItem);
+      if (checkCrc() || programPtr == &clearEepromProg) {
         state = State::RUNNING;
-        activeProgram = activePage.programs[selectedProgramItem];
+        Program activeProgram;
+        loadProgramFromProgmem(&activeProgram, programPtr);
+        printFromProgmem(activeProgram.name);
         draw(renderProgram);
-        activeProgram->programFunction();
+        activeProgram.programFunction();
         draw(renderMenu);
-        activeProgram = nullptr;
+        activeProgram = {};
         state = State::IDLE;
       }
       return;

@@ -1,16 +1,19 @@
 void findHome() {
-  // driveToEndstop(&steppers[0], ENDSTOP[0], -1);
-  // X0.value = 0;
-  // saveToEEPROM(&X0);
+  loadCurrentPosFromEeprom(&X0);
+  driveToEndstop(Axis::X, -1);
+  currentPosition.value = 0;
+  saveToEeprom(&currentPosition);
 
-  // driveToEndstop(&steppers[1], ENDSTOP[1], 1);
-  // Y0.value = 0;
-  // saveToEEPROM(&Y0);
+  loadCurrentPosFromEeprom(&Y0);
+  driveToEndstop(Axis::Y, 1);
+  currentPosition.value = 0;
+  saveToEeprom(&currentPosition);
 
   // makeSteps(&steppers[2], 2500, -1);
-  // driveToEndstop(&steppers[2], ENDSTOP[2], 1);
-  // Z0.value = 0;
-  // saveToEEPROM(&Z0);
+  loadCurrentPosFromEeprom(&Z0);
+  driveToEndstop(Axis::Z, 1);
+  currentPosition.value = 0;
+  saveToEeprom(&currentPosition);
 }
 
 void driveHome() {
