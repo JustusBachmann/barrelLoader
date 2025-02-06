@@ -1,17 +1,17 @@
 void findHome() {
   loadCurrentPosFromEeprom(&X0);
-  driveToEndstop(Axis::X, -1);
+  driveToEndstop(0, -1);
   currentPosition.value = 0;
   saveToEeprom(&currentPosition);
 
   loadCurrentPosFromEeprom(&Y0);
-  driveToEndstop(Axis::Y, 1);
+  driveToEndstop(1, 1);
   currentPosition.value = 0;
   saveToEeprom(&currentPosition);
 
-  // makeSteps(&steppers[2], 2500, -1);
+  makeSteps(2, 2500, -1);
   loadCurrentPosFromEeprom(&Z0);
-  driveToEndstop(Axis::Z, 1);
+  driveToEndstop(2, 1);
   currentPosition.value = 0;
   saveToEeprom(&currentPosition);
 }

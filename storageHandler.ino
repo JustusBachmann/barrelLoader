@@ -83,6 +83,7 @@ void getFromEeprom(Position* pos, DynPosition* dynPos) {
   for (int i = 0; i < lengthOfInt16_t; i++) {
     dynPos->value |= ((uint16_t)EEPROM.read(baseAddr + i)) << (i * 8);
   }
+  dynPos->axis = loadAxisFromProgmem(pos);
 }
 
 // void loadPositions(Position* positions[], DynPosition* dynPositions[], int count) {
@@ -94,16 +95,22 @@ void getFromEeprom(Position* pos, DynPosition* dynPos) {
 
 #pragma region progmem
 void loadActivePage(MenuPage* menuPtr) {
-  loadMenuPageFromProgmem(&activePage, menuPtr);
+  loadFromProgmem(&activePage, menuPtr);
   activePageLength = (activePage.back == nullptr ? 0 : 1) + activePage.subMenusCount + activePage.positionsCount + activePage.programsCount;
 }
 
-void loadMenuPageFromProgmem(MenuPage* page, const MenuPage* menuPtr) {
+void loadFromProgmem(MenuPage* page, const MenuPage* menuPtr) {
   memcpy_P(page, menuPtr, sizeof(MenuPage));
 }
 
-void loadProgramFromProgmem(Program* prog, const Program* progPtr) {
+void loadFromProgmem(Program* prog, const Program* progPtr) {
   memcpy_P(prog, progPtr, sizeof(Program));
+}
+
+uint8_t loadAxisFromProgmem(const Position* posPtr) {
+  Position pos;
+  memcpy_P(&pos, posPtr, sizeof(Position));
+  return pos.axis;
 }
 
 const MenuPage* getFromProgmem(const MenuPage* const* subMenusArray, uint8_t index) {

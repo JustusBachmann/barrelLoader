@@ -30,7 +30,7 @@ void setup() {
   loadActivePage(&mainMenu);
   Program activeProgram;
   draw(renderProgram);
-  loadProgramFromProgmem(&activeProgram, &clearEepromProg);
+  loadFromProgmem(&activeProgram, &clearEepromProg);
   activeProgram.programFunction();
 
   initializeSteppers();
@@ -73,28 +73,27 @@ void loop() {
       return;
 
     case State::SETPOSITION:
-      int stepperID = getIntFromAxis(currentPosition.pos->axis);
       if (digitalRead(ENCODER_SW) == LOW) {
         waitForButtonRelease();
-        while (!destinationReached(stepperID)) {
-          steppers[stepperID].run();
+        while (!destinationReached(currentPosition.axis)) {
+          steppers[currentPosition.axis].run();
         }
         saveNewPosition();
       }
 
       if (encoderState.clkLowDetected && encoderState.dtLowDetected) {
         if (encoderState.clkLowTime < encoderState.dtLowTime) {
-          setPosition(currentPosition.pos->axis, +1);
+          setPosition(currentPosition.axis, +1);
 
         } else if (encoderState.dtLowTime < encoderState.clkLowTime) {
-          setPosition(currentPosition.pos->axis, -1);
+          setPosition(currentPosition.axis, -1);
         }
 
         resetDetection();
         draw(renderPosition);
       }
       // if ()
-      steppers[stepperID].run();
+      steppers[currentPosition.axis].run();
       return;
       
     default:

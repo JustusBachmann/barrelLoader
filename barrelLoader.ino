@@ -48,12 +48,6 @@ const uint8_t linesPerPage = 8;
 #pragma endregion
 
 #pragma region enums
-enum class Axis: uint8_t {
-  X = 0,
-  Y = 1,
-  Z = 2
-};
-
 enum class State: uint8_t {
   IDLE = 0,
   RUNNING = 1,
@@ -72,12 +66,13 @@ enum class Peak : uint8_t {
 #pragma region structs
 struct Position {
     const char* name PROGMEM;
-    Axis axis;
+    uint8_t axis; // X = 0, Y = 1, Z = 2
     uint8_t eepromOffset;
 };
 
 struct DynPosition {
     Position* pos;
+    uint8_t axis; // X = 0, Y = 1, Z = 2
     int16_t value;
 };
 
@@ -116,28 +111,28 @@ const char x4Str[] PROGMEM = "X4";
 const char y4Str[] PROGMEM = "Y4";
 const char z4Str[] PROGMEM = "Z4";
 
-const Position X0 PROGMEM = {x0Str, Axis::X, 1};
-const Position Y0 PROGMEM = {y0Str, Axis::Y, 2};
-const Position Z0 PROGMEM = {z0Str, Axis::Z, 3};
+const Position X0 PROGMEM = {x0Str, 0, 1};
+const Position Y0 PROGMEM = {y0Str, 1, 2};
+const Position Z0 PROGMEM = {z0Str, 2, 3};
 
-const Position X1 PROGMEM = {x1Str, Axis::X, 4};
-const Position Y1 PROGMEM = {y1Str, Axis::Y, 5};
-const Position Z1 PROGMEM = {z1Str, Axis::Z, 6};
+const Position X1 PROGMEM = {x1Str, 0, 4};
+const Position Y1 PROGMEM = {y1Str, 1, 5};
+const Position Z1 PROGMEM = {z1Str, 2, 6};
 
-const Position peak60X2 PROGMEM = {x2Str, Axis::X, 8};
-const Position peak55X2 PROGMEM = {x2Str, Axis::X, 7};
-const Position singleSideX2 PROGMEM = {x2Str, Axis::X, 9};
-const Position Y2 PROGMEM = {y2Str, Axis::Y, 10};
-const Position Z2 PROGMEM = {z2Str, Axis::Z, 11};
+const Position peak60X2 PROGMEM = {x2Str, 0, 8};
+const Position peak55X2 PROGMEM = {x2Str, 0, 7};
+const Position singleSideX2 PROGMEM = {x2Str, 0, 9};
+const Position Y2 PROGMEM = {y2Str, 1, 10};
+const Position Z2 PROGMEM = {z2Str, 2, 11};
 
-const Position peak55X3 PROGMEM = {x3Str, Axis::X, 12};
-const Position peak60X3 PROGMEM = {x3Str, Axis::X, 13};
-const Position Y3 PROGMEM = {y3Str, Axis::Y, 14};
-const Position Z3 PROGMEM = {z3Str, Axis::Z, 15};
+const Position peak55X3 PROGMEM = {x3Str, 0, 12};
+const Position peak60X3 PROGMEM = {x3Str, 0, 13};
+const Position Y3 PROGMEM = {y3Str, 1, 14};
+const Position Z3 PROGMEM = {z3Str, 2, 15};
 
-const Position X4 PROGMEM = {x4Str, Axis::X, 16};
-const Position Y4 PROGMEM = {y4Str, Axis::Y, 17};
-const Position Z4 PROGMEM = {z4Str, Axis::Z, 18};
+const Position X4 PROGMEM = {x4Str, 0, 16};
+const Position Y4 PROGMEM = {y4Str, 1, 17};
+const Position Z4 PROGMEM = {z4Str, 2, 18};
 #pragma endregion
 
 #pragma region function forward declarations
@@ -153,8 +148,9 @@ void changePage(MenuPage* newActive);
 void printFromProgmem(MenuPage* subMenuPtr);
 void printFromProgmem(Program* programPtr);
 void printFromProgmem(Position* positionPtr);
-void loadMenuPageFromProgmem(MenuPage* page, const MenuPage* menuPtr);
-void loadProgramFromProgmem(Program* prog, const Program* progPtr);
+void loadFromProgmem(MenuPage* page, const MenuPage* menuPtr);
+void loadFromProgmem(Program* prog, const Program* progPtr);
+uint8_t loadAxisFromProgmem(const Position* posPtr);
 void loadCurrentPosFromEeprom(Position* pos);
 void getFromEeprom(Position* pos, DynPosition* dynPos);
 void saveToEeprom(DynPosition* dynPos);
@@ -162,11 +158,10 @@ const MenuPage* getFromProgmem(const MenuPage* const* subMenusArray, uint8_t ind
 const Program* getFromProgmem(const Program* const* programsArray, uint8_t index);
 const Position* getFromProgmem(const Position* const* positionsArray, uint8_t index);
 
-void driveToEndstop(Axis axis, int8_t dir);
-int getIntFromAxis(Axis axis);
+void driveToEndstop(uint8_t axis, int8_t dir);
 void initializeStepper(AccelStepper& stepper, uint8_t axis);
-void setPosition(Axis axis, int8_t dir);
-void step(Axis axis, int16_t dest);
+void setPosition(uint8_t axis, int8_t dir);
+void step(uint8_t axis, int16_t dest);
 bool destinationReached(AccelStepper* stepper);
 void stepXYZ(DynPosition* pos[3]);
 void stepXZ(DynPosition* pos[2]);
@@ -307,7 +302,7 @@ State state = State::IDLE;
 Peak peak = Peak::PEAK_55;
 MenuPage activePage;
 MenuPage* navigationHistory[MAX_HISTORY];
-DynPosition currentPosition = {nullptr, 0};
+DynPosition currentPosition = {nullptr, -1, -1};
 int16_t newPosition;
 uint8_t activePageLength = 0; 
 uint8_t historyIndex = 0;

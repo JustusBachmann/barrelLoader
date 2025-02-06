@@ -1,24 +1,21 @@
-void driveToEndstop(Axis axis, int8_t dir) {
-  int stepperID = getIntFromAxis(axis);
-  steppers[stepperID].setSpeed(dir * HOMING_SPEED);
-  while (digitalRead(ENDSTOP[stepperID]) == HIGH) {
-    steppers[stepperID].runSpeed();
+void driveToEndstop(uint8_t axis, int8_t dir) {
+  steppers[axis].setSpeed(dir * HOMING_SPEED);
+  while (digitalRead(ENDSTOP[axis]) == HIGH) {
+    steppers[axis].runSpeed();
   }
-  steppers[stepperID].stop();
-  steppers[stepperID].setCurrentPosition(0);
+  steppers[axis].stop();
+  steppers[axis].setCurrentPosition(0);
 }
 
-void step(Axis axis, int16_t dest) {
-  int stepperID = getIntFromAxis(axis); 
-  Serial.println(stepperID);
-  steppers[stepperID].moveTo(dest);
-  steppers[stepperID].runSpeedToPosition();
+void step(uint8_t axis, int16_t dest) { 
+  steppers[axis].moveTo(dest);
+  steppers[axis].runSpeedToPosition();
 }
 
-// void makeSteps(AccelStepper* stepper, int steps, int8_t dir) {
-//   stepper->move(dir * steps);
-//   stepper->runToPosition();
-// }
+void makeSteps(uint8_t axis, int steps, int8_t dir) {
+  steppers[axis].move(dir * steps);
+  steppers[axis].runToPosition();
+}
 
 void stepXYZ(DynPosition* pos[3]) {
   long destPos[3];
@@ -43,17 +40,6 @@ void stepXZ(DynPosition* pos[2]) {
   destPos[1] = pos[1]->value;
   steppersXZ.moveTo(destPos);
   steppersXZ.runSpeedToPosition();
-}
-
-int getIntFromAxis(Axis axis) {
-  switch(axis) {
-    case Axis::X:
-      return 0;
-    case Axis::Y:
-      return 1;
-    case Axis::Z:
-      return 2;
-  }
 }
 
 bool destinationReached(int stepperID) {

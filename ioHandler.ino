@@ -27,7 +27,7 @@ void waitForButtonRelease() {
   encoderState.buttonPressed = false;
 }
 
-void setPosition(Axis axis, int8_t dir) {
+void setPosition(uint8_t axis, int8_t dir) {
   newPosition += STEP_SIZE * dir;
   step(axis, newPosition);
 }
@@ -37,7 +37,7 @@ void saveNewPosition() {
     currentPosition.value = newPosition;
     saveToEeprom(&currentPosition);
   }
-  currentPosition = {nullptr, 0};
+  currentPosition = {nullptr, -1, -1};
   state = State::IDLE;
   draw(renderMenu);
 }
@@ -57,7 +57,7 @@ void handleButtonPressedMenu() {
         loadCurrentPosFromEeprom(positionPtr);
         draw(renderPosition);
         state = State::SETPOSITION;
-        step(currentPosition.pos->axis, currentPosition.value);
+        step(currentPosition.axis, currentPosition.value);
       }
       return;
     }
@@ -68,7 +68,7 @@ void handleButtonPressedMenu() {
       if (checkCrc() || programPtr == &clearEepromProg) {
         state = State::RUNNING;
         Program activeProgram;
-        loadProgramFromProgmem(&activeProgram, programPtr);
+        loadFromProgmem(&activeProgram, programPtr);
         printFromProgmem(activeProgram.name);
         draw(renderProgram);
         activeProgram.programFunction();
