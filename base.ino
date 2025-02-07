@@ -28,6 +28,7 @@ void setup() {
 
   u8g2.begin();
   loadActivePage(&mainMenu);
+  navigationHistory[historyIndex] = &mainMenu;
   Program activeProgram;
   draw(renderProgram);
   loadFromProgmem(&activeProgram, &clearEepromProg);
@@ -83,19 +84,23 @@ void loop() {
 
       if (encoderState.clkLowDetected && encoderState.dtLowDetected) {
         if (encoderState.clkLowTime < encoderState.dtLowTime) {
-          setPosition(currentPosition.axis, +1);
+          setPosition(+1);
 
         } else if (encoderState.dtLowTime < encoderState.clkLowTime) {
-          setPosition(currentPosition.axis, -1);
+          setPosition(-1);
         }
 
         resetDetection();
         draw(renderPosition);
       }
-      // if ()
+
+      if (stop(currentPosition.axis)) {
+        steppers[currentPosition.axis].stop();
+        return;
+      } 
       steppers[currentPosition.axis].run();
       return;
-      
+
     default:
       return;
   }

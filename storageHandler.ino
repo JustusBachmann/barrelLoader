@@ -42,7 +42,7 @@ unsigned long eepromCrc(void) {
 }
 
 void saveToEeprom(DynPosition* dynPos) {
-  int baseAddr = dynPos->pos->eepromOffset * lengthOfInt16_t + crcLength;
+  int baseAddr = loadOffsetFromProgmem(dynPos->pos) * lengthOfInt16_t + crcLength;
 
   for (int i = 0; i < lengthOfInt16_t; i++) {
     uint8_t byteValue = (dynPos->value >> (i * 8)) & 0xFF;
@@ -58,12 +58,14 @@ void saveToEeprom(DynPosition* dynPos) {
       EEPROM.write(i, byteValue);
     }
   }
-  newPosition = {};
+  newPosition = {nullptr, -1, -1};
+  currentPosition = {nullptr, -1, -1};
 }
 
 void loadCurrentPosFromEeprom(Position* pos) {
   getFromEeprom(pos, &currentPosition);
-  newPosition = currentPosition.value;
+  newPosition.axis = currentPosition.axis;
+  newPosition.value = currentPosition.value;
 }
 
 void getFromEeprom(Position* pos, DynPosition* dynPos) {
@@ -72,7 +74,7 @@ void getFromEeprom(Position* pos, DynPosition* dynPos) {
   }
 
   dynPos->pos = pos;
-  int baseAddr = pos->eepromOffset * lengthOfInt16_t + crcLength;
+  int baseAddr = loadOffsetFromProgmem(dynPos->pos) * lengthOfInt16_t + crcLength;
 
   if (baseAddr + lengthOfInt16_t > EEPROM.length()) {
     dynPos->value = 0;
@@ -81,16 +83,10 @@ void getFromEeprom(Position* pos, DynPosition* dynPos) {
 
   dynPos->value = 0;
   for (int i = 0; i < lengthOfInt16_t; i++) {
-    dynPos->value |= ((uint16_t)EEPROM.read(baseAddr + i)) << (i * 8);
+    dynPos->value |= ((int16_t)EEPROM.read(baseAddr + i)) << (i * 8);
   }
   dynPos->axis = loadAxisFromProgmem(pos);
 }
-
-// void loadPositions(Position* positions[], DynPosition* dynPositions[], int count) {
-//   for (int i = 0; i < count; i++) {
-//     loadPosition(positions[i], dynPositions[i]);
-//   }
-// }
 #pragma endregion
 
 #pragma region progmem
@@ -111,6 +107,12 @@ uint8_t loadAxisFromProgmem(const Position* posPtr) {
   Position pos;
   memcpy_P(&pos, posPtr, sizeof(Position));
   return pos.axis;
+}
+
+uint8_t loadOffsetFromProgmem(const Position* posPtr) {
+  Position pos;
+  memcpy_P(&pos, posPtr, sizeof(Position));
+  return pos.eepromOffset;
 }
 
 const MenuPage* getFromProgmem(const MenuPage* const* subMenusArray, uint8_t index) {

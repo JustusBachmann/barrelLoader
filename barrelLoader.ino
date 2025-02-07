@@ -19,7 +19,7 @@ const uint8_t motorInterfaceType = AccelStepper::DRIVER;
 
 const uint8_t DRV_DIR[] = {10, 8, 6, 28, 34}; // X, Y, Z, E0, E1
 const uint8_t DRV_STEP[] = {11, 9, 7, 26, 36}; // X, Y, Z, E0, E1
-const uint8_t DRV_ENABLE[] = {38, 56, 11, 24, 30}; // X, Y, Z, E0, E1
+const uint8_t DRV_ENABLE[] = {4, 2, 3, 24, 30}; // X, Y, Z, E0, E1
 const uint8_t ENDSTOP[] = {14, 15, 16, 15}; // X, Y, Z, E0                                  ----- E0 = Y? 
 
 const uint8_t MESA_OUT[] = {22, 23, 24};
@@ -33,7 +33,7 @@ const uint8_t lengthOfInt16_t = 2;
 const uint8_t crcLength = 4; 
 const uint16_t HOMING_SPEED = 2500;
 const uint16_t PROGRAM_SPEED = 1000;
-const uint16_t ACCELERATION = 750;
+const uint16_t ACCELERATION = 3000;
 
 const uint8_t STEP_SIZE = 50; //200 steps = 360°
 const uint16_t DELAY_BETWEEN_STEPS = 1000; //1000 = 1s
@@ -137,49 +137,47 @@ const Position Z4 PROGMEM = {z4Str, 2, 18};
 
 #pragma region function forward declarations
 void findHome();
-void placeBarrelFunc();
-void barrelLoadFunc();
+void performStepSequence(Position* xPos, Position* yPos, Position* zPos, DynPosition* positions[]);
+void placeBarrelFunc(DynPosition* xDynPos, DynPosition* yDynPos, DynPosition* zDynPos);
+void barrelLoadFunc(DynPosition* xDynPos, DynPosition* yDynPos, DynPosition* zDynPos);
 void peakTipFunc();
 void clearEeprom();
 
+void draw(void (*renderFunction)());
 void loadActivePage(MenuPage* menuPtr);
 void changePage(MenuPage* newActive);
 
+void loadCurrentPosFromEeprom(Position* pos);
+void getFromEeprom(Position* pos, DynPosition* dynPos);
+void saveToEeprom(DynPosition* dynPos);
 void printFromProgmem(MenuPage* subMenuPtr);
 void printFromProgmem(Program* programPtr);
 void printFromProgmem(Position* positionPtr);
 void loadFromProgmem(MenuPage* page, const MenuPage* menuPtr);
 void loadFromProgmem(Program* prog, const Program* progPtr);
 uint8_t loadAxisFromProgmem(const Position* posPtr);
-void loadCurrentPosFromEeprom(Position* pos);
-void getFromEeprom(Position* pos, DynPosition* dynPos);
-void saveToEeprom(DynPosition* dynPos);
+uint8_t loadOffsetFromProgmem(const Position* posPtr);
 const MenuPage* getFromProgmem(const MenuPage* const* subMenusArray, uint8_t index);
 const Program* getFromProgmem(const Program* const* programsArray, uint8_t index);
 const Position* getFromProgmem(const Position* const* positionsArray, uint8_t index);
 
-void driveToEndstop(uint8_t axis, int8_t dir);
 void initializeStepper(AccelStepper& stepper, uint8_t axis);
-void setPosition(uint8_t axis, int8_t dir);
-void step(uint8_t axis, int16_t dest);
 bool destinationReached(AccelStepper* stepper);
-void stepXYZ(DynPosition* pos[3]);
-void stepXZ(DynPosition* pos[2]);
-void stepYZ(DynPosition* pos[2]);
+void step(DynPosition* pos[], uint8_t count);
 #pragma endregion
 
 #pragma region programs
 const char homingStr[] PROGMEM = "Homing";
-const char placeBarrelStr[] PROGMEM = "Place Barrel";
-const char loadBarrelStr[] PROGMEM = "Load Barrel";
+// const char placeBarrelStr[] PROGMEM = "Place Barrel";
+// const char loadBarrelStr[] PROGMEM = "Load Barrel";
 const char peak55TipStr[] PROGMEM = "Peak 55 Tip";
 const char peak60TipStr[] PROGMEM = "Peak 60 Tip";
 const char peakSiSiTipStr[] PROGMEM = "Peak Single Side";
 const char clearEepromStr[] PROGMEM = "Clear EEPROM";
 
 const Program homing PROGMEM = {homingStr, &findHome, Peak::NONE};
-const Program placeBarrel PROGMEM = {placeBarrelStr, &placeBarrelFunc, Peak::NONE};
-const Program loadBarrel PROGMEM = {loadBarrelStr, &barrelLoadFunc, Peak::NONE};
+// const Program placeBarrel PROGMEM = {placeBarrelStr, &placeBarrelFunc, Peak::NONE};
+// const Program loadBarrel PROGMEM = {loadBarrelStr, &barrelLoadFunc, Peak::NONE};
 const Program peak55Tip PROGMEM = {peak55TipStr, &peakTipFunc, Peak::PEAK_55};
 const Program peak60Tip PROGMEM = {peak60TipStr, &peakTipFunc, Peak::PEAK_60};
 const Program peakSiSiTip PROGMEM = {peakSiSiTipStr, &peakTipFunc, Peak::SINGLE_SIDE};  
@@ -217,7 +215,7 @@ const MenuPage* const peakSiSiPrograms[] PROGMEM = {nullptr};
 const MenuPage* const globalPositionsPrograms[] PROGMEM = {nullptr};
 const Program* const settingsPrograms[] PROGMEM = {&clearEepromProg};
 const Program* const selectProgramPrograms[] PROGMEM =
-    {&placeBarrel, &loadBarrel, &peak55Tip, &peak60Tip, &peakSiSiTip};
+    {/*&placeBarrel, &loadBarrel, */&peak55Tip, &peak60Tip, &peakSiSiTip};
 const Program* const mainMenuPrograms[] PROGMEM = {&homing};
 
 const MenuPage peak55Menu PROGMEM = {
@@ -268,7 +266,7 @@ const MenuPage selectProgramMenu PROGMEM = {
     (Position**)selectProgramPositions,
     0,
     (Program**)selectProgramPrograms,
-    5};
+    3};
 
 const MenuPage* const settingsSubMenus[] PROGMEM =
     {&globalPositionsMenu, &singleSideMenu, &peak55Menu, &peak60Menu};
@@ -303,7 +301,7 @@ Peak peak = Peak::PEAK_55;
 MenuPage activePage;
 MenuPage* navigationHistory[MAX_HISTORY];
 DynPosition currentPosition = {nullptr, -1, -1};
-int16_t newPosition;
+DynPosition newPosition = {nullptr, -1, -1};
 uint8_t activePageLength = 0; 
 uint8_t historyIndex = 0;
 uint8_t selectedIndex = 0;
@@ -327,5 +325,3 @@ U8G2_SH1107_PIMORONI_128X128_F_HW_I2C u8g2(U8G2_R0);
 AccelStepper steppers[5]; // X, Y, Z, E0, E1
 
 MultiStepper steppersXYZ;
-MultiStepper steppersYZ;
-MultiStepper steppersXZ;

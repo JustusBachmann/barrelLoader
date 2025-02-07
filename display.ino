@@ -12,15 +12,14 @@ void clampAndScroll(int8_t direction) {
 
 void draw(void (*renderFunction)()) {
   u8g2.firstPage();
+  u8g2.setFont(u8g2_font_ncenB08_tr);
+  u8g2.setCursor(0, 10);
   do {
     renderFunction();
   } while (u8g2.nextPage());
 }
 
 void renderMenu() {
-  u8g2.setFont(u8g2_font_ncenB08_tr);
-
-  u8g2.setCursor(0, 10);
   printFromProgmem(activePage.title);
 
   u8g2.setCursor(0, 12);
@@ -58,32 +57,11 @@ void renderMenu() {
   u8g2.setDrawColor(1);
 }
 
-void renderLoadingScreen() {
-  u8g2.setFont(u8g2_font_ncenB08_tr);
-  u8g2.drawCircle(64, 32, 20);
-  u8g2.drawLine(64, 27, 64, 37);
-  u8g2.drawLine(59, 32, 69, 32);
-  u8g2.setCursor(40, 55);
-  u8g2.print("Arduino");
-  u8g2.setCursor(40, 10);
-  u8g2.print("Loading...");
-}
-
 void renderProgram() {
-  u8g2.setFont(u8g2_font_ncenB08_tr);
-  u8g2.drawCircle(64, 32, 20);
-  u8g2.drawLine(64, 27, 64, 37);
-  u8g2.drawLine(59, 32, 69, 32);
-  u8g2.setCursor(40, 10);
   u8g2.print("Running...");
-  u8g2.setCursor(40, 55);
 }
 
 void renderPosition() {
-  u8g2.setFont(u8g2_font_ncenB08_tr);
-
-  u8g2.setCursor(0, 10);
-
   printFromProgmem(currentPosition.pos);
 
   u8g2.drawLine(0, 12, 128, 12);
@@ -93,7 +71,7 @@ void renderPosition() {
   u8g2.print(currentPosition.value);
   u8g2.setCursor(5, 36);
   u8g2.print("new: ");
-  u8g2.print(newPosition);
+  u8g2.print(newPosition.value);
 }
 
 void printFromProgmem(const char* str) {
@@ -103,19 +81,27 @@ void printFromProgmem(const char* str) {
 }
 
 void changePage(MenuPage* newActive) {
-  // if (historyIndex < MAX_HISTORY - 1) {
-  //     navigationHistory[++historyIndex] = activePage; 
-  // }
+  if (historyIndex < MAX_HISTORY - 1) {
+    navigationHistory[++historyIndex] = newActive;
+  } else {
+    // Shift history if needed; this ensures the newest page is always stored
+    for (int i = 1; i < MAX_HISTORY; i++) {
+      navigationHistory[i - 1] = navigationHistory[i];
+    }
+    navigationHistory[MAX_HISTORY - 1] = newActive;
+  }
+
   loadActivePage(newActive);
   selectedIndex = 0;
   topIndex = 0;
 }
 
 void goBack() {
-  if (historyIndex >= 0) {
-    loadActivePage(&mainMenu);
-    // activePage = navigationHistory[historyIndex--];
-    selectedIndex = 0;
-    topIndex = 0; 
+    if (historyIndex > 0) {
+    loadActivePage(navigationHistory[--historyIndex]);
+  } else if (historyIndex == 0) {
+    loadActivePage(navigationHistory[historyIndex]); 
   }
+  selectedIndex = 0;
+  topIndex = 0;
 }

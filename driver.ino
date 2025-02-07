@@ -1,15 +1,14 @@
 void driveToEndstop(uint8_t axis, int8_t dir) {
   steppers[axis].setSpeed(dir * HOMING_SPEED);
-  while (digitalRead(ENDSTOP[axis]) == HIGH) {
+  while (!stop(axis)) {
     steppers[axis].runSpeed();
   }
   steppers[axis].stop();
   steppers[axis].setCurrentPosition(0);
 }
 
-void step(uint8_t axis, int16_t dest) { 
-  steppers[axis].moveTo(dest);
-  steppers[axis].runSpeedToPosition();
+bool stop(uint8_t axis) {
+  return digitalRead(ENDSTOP[axis]) == LOW;
 }
 
 void makeSteps(uint8_t axis, int steps, int8_t dir) {
@@ -17,29 +16,23 @@ void makeSteps(uint8_t axis, int steps, int8_t dir) {
   steppers[axis].runToPosition();
 }
 
-void stepXYZ(DynPosition* pos[3]) {
-  long destPos[3];
-  destPos[0] = pos[0]->value;
-  destPos[1] = pos[1]->value;
-  destPos[2] = pos[2]->value;
+void step(DynPosition* pos[], uint8_t count) {
+  long destPos[3] = {steppers[0].currentPosition(), steppers[1].currentPosition(), steppers[2].currentPosition()};
+  for (uint8_t i = 0; i < count; i++) {
+    if (pos[i] != nullptr) {
+      destPos[pos[i]->axis] = pos[i]->value;
+    }
+  }
   steppersXYZ.moveTo(destPos);
+}
+
+void performStepSequence(Position* xPos, Position* yPos, Position* zPos, DynPosition* positions[]) {
+  if (xPos) getFromEeprom(xPos, positions[0]);
+  if (yPos) getFromEeprom(yPos, positions[1]);
+  if (zPos) getFromEeprom(zPos, positions[2]);
+  step(positions, 3);
   steppersXYZ.runSpeedToPosition();
-}
-
-void stepYZ(DynPosition* pos[2]) {
-  long destPos[2];
-  destPos[0] = pos[0]->value;
-  destPos[1] = pos[1]->value;
-  steppersYZ.moveTo(destPos);
-  steppersYZ.runSpeedToPosition();
-}
-
-void stepXZ(DynPosition* pos[2]) {
-  long destPos[2];
-  destPos[0] = pos[0]->value;
-  destPos[1] = pos[1]->value;
-  steppersXZ.moveTo(destPos);
-  steppersXZ.runSpeedToPosition();
+  delay(DELAY_BETWEEN_STEPS);
 }
 
 bool destinationReached(int stepperID) {
@@ -59,11 +52,4 @@ void initializeSteppers() {
   steppersXYZ.addStepper(steppers[0]);
   steppersXYZ.addStepper(steppers[1]);
   steppersXYZ.addStepper(steppers[2]);
-
-  steppersYZ.addStepper(steppers[1]);
-  steppersYZ.addStepper(steppers[2]);
-
-  steppersXZ.addStepper(steppers[0]);
-  steppersXZ.addStepper(steppers[1]);
-
 }

@@ -16,148 +16,106 @@ void findHome() {
   saveToEeprom(&currentPosition);
 }
 
-void driveHome() {
-  // Position* home[] = {&X0, &Y0, &Z0};
-  // stepXYZ(home);
+void placeBarrelFunc(DynPosition* xDynPos, DynPosition* yDynPos, DynPosition* zDynPos) {
+  DynPosition* positions[3] = {xDynPos, yDynPos, zDynPos};
+
+  performStepSequence(nullptr, &Y0, &Z0, positions);
+
+  performStepSequence(&X4, nullptr, nullptr, positions);
+
+  performStepSequence(nullptr, &Y4, &Z4, positions);
+
+  setLow(RELAIS[0]);
+
+  performStepSequence(nullptr, &Y0, &Z0, positions);
+
+  performStepSequence(&X0, nullptr, nullptr, positions);
 }
 
-void placeBarrelFunc() {
-//   Position* pos1[] = {&Y0, &Z0};
-//   stepYZ(pos1);
-//   delay(DELAY_BETWEEN_STEPS);
+void barrelLoadFunc(DynPosition* xDynPos, DynPosition* yDynPos, DynPosition* zDynPos) {
+  DynPosition* positions[3] = {xDynPos, yDynPos, zDynPos};
 
-//   Position* pos2 = &X4;
-//   loadPosition(pos2);
-//   step(pos2);
-//   delay(DELAY_BETWEEN_STEPS);
+  performStepSequence(&X0, &Y0, &Z0, positions);
+  
+  setLow(RELAIS[0]);
+  setHigh(RELAIS[1]);
+  setLow(RELAIS[2]);
 
-//   Position* pos3[] = {&Y4, &Z4};
-//   stepYZ(pos3);
-//   delay(DELAY_BETWEEN_STEPS);
+  makeSteps(3, 400, 1);
+ 
+  delay(1000);
+ 
+  setLow(RELAIS[1]);
+  setHigh(RELAIS[2]);
+  
+  performStepSequence(nullptr, &Y1, nullptr, positions);
 
-//   setLow(RELAIS[0]);
-//   delay(DELAY_BETWEEN_STEPS);
+  setHigh(RELAIS[0]);
+  setLow(RELAIS[2]);
 
-//   Position* pos4[] = {&Y0, &Z0};
-//   stepYZ(pos4);
-//   delay(DELAY_BETWEEN_STEPS);
+  performStepSequence(nullptr, &Y0, &Z1, positions);
 
-//   Position* pos5 = &X0;
-//   loadPosition(pos5);
+  performStepSequence(&X0, nullptr, &Z0, positions);
+  
+  makeSteps(3, 400, -1);
 }
 
-void barrelLoadFunc() {
-  // Position* pos1[] = {&X0, &Y0, &Z0};
-  // stepXYZ(pos1);
-  // delay(DELAY_BETWEEN_STEPS);
-  
-  // setLow(RELAIS[0]);
-  // setHigh(RELAIS[1]);
-  // setLow(RELAIS[2]);
-  // makeSteps(&steppers[3], 400, 1);
-
-  // delay(1000);
-
-  // setLow(RELAIS[1]);
-  // setHigh(RELAIS[2]);
-  // delay(DELAY_BETWEEN_STEPS);
-
-  // Position* pos2 = &Y1;
-  // loadPosition(pos2);
-  // step(pos2);
-  // delay(DELAY_BETWEEN_STEPS);
-
-  // setHigh(RELAIS[0]);
-  // delay(DELAY_BETWEEN_STEPS);
-  
-  // setLow(RELAIS[2]);
-  // delay(DELAY_BETWEEN_STEPS);
-  
-  // Position* pos3[] = {&Y0, &Z1};
-  // stepYZ(pos3);
-  // delay(DELAY_BETWEEN_STEPS);
-
-  // Position* pos4[] = {&X0, &Z0};
-  // stepXZ(pos4);
-  // delay(DELAY_BETWEEN_STEPS);
-
-  // makeSteps(&steppers[3], 400, -1);
-}
 
 void peakTipFunc() {
-  // Position* X2;
-  // Position* X3;
+  DynPosition xDynPos, yDynPos, zDynPos;
+  DynPosition* positions[3] = {&xDynPos, &yDynPos, &zDynPos};
+  
+  Position* X2 = nullptr;
+  Position* X3 = nullptr;
 
-  // switch(activeProgram->peakMode) {
-  //   case Peak::PEAK_55:
-  //     X2 = &peak55X2;
-  //     X3 = &peak55X3;
-  //     break;
+  switch(peak) {
+    case Peak::PEAK_55:
+      X2 = &peak55X2;
+      X3 = &peak55X3;
+      break;
 
-  //   case Peak::PEAK_60:
-  //     X2 = &peak60X2;
-  //     X3 = &peak60X3;
-  //     break;
+    case Peak::PEAK_60:
+      X2 = &peak60X2;
+      X3 = &peak60X3;
+      break;
 
-  //   case Peak::SINGLE_SIDE:
-  //     X2 = &singleSideX2;
-  //     break;
+    case Peak::SINGLE_SIDE:
+      X2 = &singleSideX2;
+      break;
 
-  //   default:
-  //     return;
-  // }
+    default:
+      return;
+  }
 
-  // setHigh(MESA_IN[0]);
-  // delay(DELAY_BETWEEN_STEPS);
+  setHigh(MESA_IN[0]);
+  
+  setLow(MESA_OUT[0]);
 
-  // setLow(MESA_OUT[0]);
-  // delay(DELAY_BETWEEN_STEPS);
+  barrelLoadFunc(&xDynPos, &yDynPos, &zDynPos);
 
-  // barrelLoadFunc();
-  // delay(DELAY_BETWEEN_STEPS);
+  performStepSequence(&X1, &Y2, &Z2, positions);
 
-  // Position* pos1[] = {&X1, &Y2, &Z2};
-  // stepXYZ(pos1);
-  // delay(DELAY_BETWEEN_STEPS);
+  // TODO request open chuck
+  
+  performStepSequence(X2, nullptr, nullptr, positions);
+  
+  // TODO request close chuck
 
-  // // TODO request open chuck
+  setLow(RELAIS[0]);
 
-  // Position* pos2 = X2;
-  // loadPosition(pos2);
-  // step(pos2);
-  // delay(DELAY_BETWEEN_STEPS);
+  performStepSequence(&X1, &Y0, &Z0, positions);
+  
+  setHigh(MESA_OUT[0]);
+  setHigh(MESA_IN[0]); 
+  setLow(MESA_OUT[0]);
+  
+  performStepSequence(X2, &Y2, &Z2, positions);
+  
+  setHigh(RELAIS[0]);
+  
+  // TODO request open chuck
 
-  // // TODO request close chuck
+  performStepSequence(&X1, nullptr, nullptr, positions);
 
-  // setLow(RELAIS[0]);
-  // delay(DELAY_BETWEEN_STEPS);
-
-  // Position* pos3[] = {&X1, &Y0, &Z0};
-  // stepXYZ(pos3);
-  // delay(DELAY_BETWEEN_STEPS);
-
-  // setHigh(MESA_OUT[0]);
-  // delay(DELAY_BETWEEN_STEPS);
-
-  // setHigh(MESA_IN[0]); 
-  // delay(DELAY_BETWEEN_STEPS);
-
-  // setLow(MESA_OUT[0]);
-  // delay(DELAY_BETWEEN_STEPS);
-
-  // Position* pos4[] = {X2, &Y2, &Z2};
-  // stepXYZ(pos4);
-  // delay(DELAY_BETWEEN_STEPS);
-
-  // setHigh(RELAIS[0]);
-  // delay(DELAY_BETWEEN_STEPS);
-
-  // // TODO request open chuck
-
-  // Position* pos5 = &X1;
-  // loadPosition(pos5);
-  // step(pos5);
-  // delay(DELAY_BETWEEN_STEPS);
-
-  // placeBarrelFunc();
+  placeBarrelFunc(&xDynPos, &yDynPos, &zDynPos);
 }
