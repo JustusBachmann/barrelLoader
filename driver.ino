@@ -1,60 +1,55 @@
-void driveToEndstop(AccelStepper* stepper, int endstopPin, int dir) {
-  stepper->setSpeed(dir * HOMING_SPEED);
-  while (digitalRead(endstopPin) == HIGH) {
-    stepper->runSpeed();
+void driveToEndstop(uint8_t axis, int8_t dir) {
+  steppers[axis].setSpeed(dir * HOMING_SPEED);
+  while (!stop(axis)) {
+    steppers[axis].runSpeed();
   }
-  stepper->stop();
-  stepper->setCurrentPosition(0);
+  steppers[axis].stop();
+  steppers[axis].setCurrentPosition(0);
 }
 
-void makeSteps(AccelStepper* stepper, int steps, int dir) {
-  stepper->move(dir * steps);
-  stepper->runToPosition();
+bool stop(uint8_t axis) {
+  return digitalRead(ENDSTOP[axis]) == LOW;
 }
 
-void stepXYZ(Position* pos[3]) {
-  long destPos[3];
-  loadAllPositions(pos, 3);
-  destPos[0] = pos[0]->value;
-  destPos[1] = pos[1]->value;
-  destPos[2] = pos[2]->value;
+void makeSteps(uint8_t axis, int steps, int8_t dir) {
+  steppers[axis].move(dir * steps);
+  steppers[axis].runToPosition();
+}
+
+void step(DynPosition* pos[], uint8_t count) {
+  long destPos[3] = {steppers[0].currentPosition(), steppers[1].currentPosition(), steppers[2].currentPosition()};
+  for (uint8_t i = 0; i < count; i++) {
+    if (pos[i] != nullptr) {
+      destPos[pos[i]->axis] = pos[i]->value;
+    }
+  }
   steppersXYZ.moveTo(destPos);
+}
+
+void performStepSequence(Position* xPos, Position* yPos, Position* zPos, DynPosition* positions[]) {
+  if (xPos) getFromEeprom(xPos, positions[0]);
+  if (yPos) getFromEeprom(yPos, positions[1]);
+  if (zPos) getFromEeprom(zPos, positions[2]);
+  step(positions, 3);
   steppersXYZ.runSpeedToPosition();
+  delay(DELAY_BETWEEN_STEPS);
 }
 
-void stepYZ(Position* pos[2]) {
-  long destPos[2];
-  loadAllPositions(pos, 2);
-  destPos[0] = pos[0]->value;
-  destPos[1] = pos[1]->value;
-  steppersYZ.moveTo(destPos);
-  steppersYZ.runSpeedToPosition();
-}
-
-void stepXZ(Position* pos[2]) {
-  long destPos[2];
-  loadAllPositions(pos, 2);
-  destPos[0] = pos[0]->value;
-  destPos[1] = pos[1]->value;
-  steppersXZ.moveTo(destPos);
-  steppersXZ.runSpeedToPosition();
-}
-
-void step(Position* pos) {
-  AccelStepper* stepper = getStepperForAxis(pos->axis);
-
-  stepper->moveTo(pos->value);
-  stepper->runSpeedToPosition();
-}
-
-
-AccelStepper* getStepperForAxis(Axis* axis) {
-  switch(axis->axis) {
-    case X_AXIS:
-      return &stepperX;
-    case Y_AXIS:
-      return &stepperY;
-    case Z_AXIS:
-      return &stepperZ;
+bool destinationReached(int stepperID) {
+  if (steppers[stepperID].distanceToGo() == 0) {
+    return true;
   }
+  return false;
+}
+
+void initializeSteppers() {
+  for (int i = 0; i < 5; i++) {
+    steppers[i] = AccelStepper(motorInterfaceType, DRV_STEP[i], DRV_DIR[i]);
+    steppers[i].setMaxSpeed(PROGRAM_SPEED);
+    steppers[i].setAcceleration(ACCELERATION);
+  }
+
+  steppersXYZ.addStepper(steppers[0]);
+  steppersXYZ.addStepper(steppers[1]);
+  steppersXYZ.addStepper(steppers[2]);
 }

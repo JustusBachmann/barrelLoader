@@ -1,8 +1,5 @@
 void resetDetection() {
-  encoderCLKLowDetected = false;
-  encoderDTLowDetected = false;
-  encoderCLKLowTime = 0;
-  encoderDTLowTime = 0;
+  encoderState = {0, 0, false, false, false};
 }
 
 void setHigh(int pin) {
@@ -27,60 +24,88 @@ void waitForButtonRelease() {
       lastDebounceTime = millis();
     }
   }
-  buttonPressed = false;
+  encoderState.buttonPressed = false;
 }
 
-bool destinationReached(AccelStepper* stepper) {
-  if (stepper->distanceToGo() == 0) {
-    return true;
-  }
-  return false;
+void setPosition(int8_t dir) {
+  newPosition.value += STEP_SIZE * dir;
+  DynPosition* positions[1];
+  positions[0] = {&newPosition};
+  step(positions, 1);
 }
 
 void saveNewPosition() {
-  if (currentPosition != nullptr) {
-    currentPosition->value = newPosition.value;
-    saveToEEPROM(currentPosition);
-    currentPosition = nullptr;
-    state = SETTING;
-    draw(renderMenu);
+  if (currentPosition.pos != nullptr) {
+    currentPosition.value = newPosition.value;
+    saveToEeprom(&currentPosition);
+  }
+  state = State::IDLE;
+  draw(renderMenu);
+}
+
+
+void handleButtonPressedMenu() {
+  uint8_t selectedItemType = determineSelectedItemType();
+  
+  switch (selectedItemType) {
+    case 0:
+      navigateToSubMenu(selectedIndex);
+      break;
+    case 1:
+      processPositionItem(selectedIndex - activePage.subMenusCount);
+      break;
+    case 2:
+      processProgramItem(selectedIndex - activePage.subMenusCount - activePage.positionsCount);
+      break;
+    default:
+      goBack();
+      draw(renderMenu);
+      break;
   }
 }
 
-void handleButtonPressedMenu() {
-    if (selectedIndex < activePage->subMenusCount) {
-      changePage(activePage->subMenus[selectedIndex]);
-      draw(renderMenu);
-      return;
+uint8_t determineSelectedItemType() {
+    if (selectedIndex < activePage.subMenusCount) {
+        return 0;
+    } else if (selectedIndex < activePage.subMenusCount + activePage.positionsCount) {
+        return 1;
+    } else if (selectedIndex < activePage.subMenusCount + activePage.positionsCount + activePage.programsCount) {
+        return 2;
     }
+    return 3;
+}
 
-    int selectedPositionItem = selectedIndex - activePage->subMenusCount;
-    if (selectedPositionItem < activePage->positionsCount) {
-      readPositionFromEEPROM(activePage->positions[selectedPositionItem]);
-      if (state == SETTING) {
+void navigateToSubMenu(uint8_t index) {
+    const MenuPage* subMenuPtr = getFromProgmem(activePage.subMenus, index);
+    changePage(subMenuPtr);
+    draw(renderMenu);
+}
+
+void processPositionItem(int positionIndex) {
+    if (checkCrc()) {
+        const Position* positionPtr = getFromProgmem(activePage.positions, positionIndex);
+        loadCurrentPosFromEeprom(positionPtr);
         draw(renderPosition);
-        state = SETPOSITION;
-        step(currentPosition);
-      }
-      return;
+        state = State::SETPOSITION;
+        DynPosition* positions[1];
+        positions[0] = {&currentPosition};
+        step(positions, 1);
+    } else {
+        draw(renderMenu);
     }
+}
 
-    int selectedProgramItem = selectedPositionItem - activePage->positionsCount;
-    if (selectedProgramItem < activePage->programsCount) {
-      state = RUNNING;
-      activeProgram = activePage->programs[selectedProgramItem];
-      draw(renderProgram);
-      activeProgram->programFunction();
-      draw(renderMenu);
-      activeProgram = nullptr;
-      state = IDLE;
-      return;
+void processProgramItem(int programIndex) {
+    const Program* programPtr = getFromProgmem(activePage.programs, programIndex);
+    if (checkCrc() || programPtr == &clearEepromProg) {
+        state = State::RUNNING;
+        Program activeProgram;
+        loadFromProgmem(&activeProgram, programPtr);
+        draw(renderProgram);
+        printFromProgmem(activeProgram.name);
+        peak = activeProgram.peakMode;
+        activeProgram.programFunction();
+        state = State::IDLE;
     }
-
-    int selectedMenuItem = selectedProgramItem - activePage->programsCount;
-    if (strcmp(activePage->items[selectedMenuItem], "Back") == 0) {
-      goBack();
-      draw(renderMenu);
-      return;
-    }
+    draw(renderMenu);
 }

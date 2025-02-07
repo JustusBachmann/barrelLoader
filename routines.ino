@@ -1,177 +1,121 @@
 void findHome() {
-  Serial.println("Find Home");
-  driveToEndstop(&stepperX, X.endstopPin, -1);
-  X0.value = 0;
-  saveToEEPROM(&X0);
+  loadCurrentPosFromEeprom(&X0);
+  driveToEndstop(0, -1);
+  currentPosition.value = 0;
+  saveToEeprom(&currentPosition);
 
-  driveToEndstop(&stepperY, Y.endstopPin, 1);
-  Y0.value = 0;
-  saveToEEPROM(&Y0);
+  loadCurrentPosFromEeprom(&Y0);
+  driveToEndstop(1, 1);
+  currentPosition.value = 0;
+  saveToEeprom(&currentPosition);
 
-  makeSteps(&stepperZ, 2500, -1);
-  driveToEndstop(&stepperZ, Z.endstopPin, 1);
-  Z0.value = 0;
-  saveToEEPROM(&Z0);
+  makeSteps(2, 2500, -1);
+  loadCurrentPosFromEeprom(&Z0);
+  driveToEndstop(2, 1);
+  currentPosition.value = 0;
+  saveToEeprom(&currentPosition);
 }
 
-void driveHome() {
-  Serial.println("Homing");
-  Position* home[] = {&X0, &Y0, &Z0};
-  stepXYZ(home);
+void placeBarrelFunc(DynPosition* xDynPos, DynPosition* yDynPos, DynPosition* zDynPos) {
+  DynPosition* positions[3] = {xDynPos, yDynPos, zDynPos};
+
+  performStepSequence(nullptr, &Y0, &Z0, positions);
+
+  performStepSequence(&X4, nullptr, nullptr, positions);
+
+  performStepSequence(nullptr, &Y4, &Z4, positions);
+
+  setLow(RELAIS[0]);
+
+  performStepSequence(nullptr, &Y0, &Z0, positions);
+
+  performStepSequence(&X0, nullptr, nullptr, positions);
 }
 
-void placeBarrelFunc() {
-  Position* pos1[] = {&Y0, &Z0};
-  stepYZ(pos1);
-  delay(DELAY_BETWEEN_STEPS);
+void barrelLoadFunc(DynPosition* xDynPos, DynPosition* yDynPos, DynPosition* zDynPos) {
+  DynPosition* positions[3] = {xDynPos, yDynPos, zDynPos};
 
-  Position* pos2 = &X4;
-  loadPosition(pos2);
-  step(pos2);
-  delay(DELAY_BETWEEN_STEPS);
-
-  Position* pos3[] = {&Y4, &Z4};
-  stepYZ(pos3);
-  delay(DELAY_BETWEEN_STEPS);
-
-  setLow(RELAIS1);
-  delay(DELAY_BETWEEN_STEPS);
-
-  Position* pos4[] = {&Y0, &Z0};
-  stepYZ(pos4);
-  delay(DELAY_BETWEEN_STEPS);
-
-  Position* pos5 = &X0;
-  loadPosition(pos5);
-}
-
-void barrelLoadFunc() {
-  Position* pos1[] = {&X0, &Y0, &Z0};
-  stepXYZ(pos1);
-  delay(DELAY_BETWEEN_STEPS);
+  performStepSequence(&X0, &Y0, &Z0, positions);
   
-  setLow(RELAIS1);
-  setHigh(RELAIS2);
-  setLow(RELAIS3);
-  makeSteps(&stepperE0, 400, 1);
+  setLow(RELAIS[0]);
+  setHigh(RELAIS[1]);
+  setLow(RELAIS[2]);
 
+  makeSteps(3, 400, 1);
+ 
   delay(1000);
-
-  setLow(RELAIS2);
-  setHigh(RELAIS3);
-  delay(DELAY_BETWEEN_STEPS);
-
-  Position* pos2 = &Y1;
-  loadPosition(pos2);
-  step(pos2);
-  delay(DELAY_BETWEEN_STEPS);
-
-  setHigh(RELAIS1);
-  delay(DELAY_BETWEEN_STEPS);
+ 
+  setLow(RELAIS[1]);
+  setHigh(RELAIS[2]);
   
-  setLow(RELAIS3);
-  delay(DELAY_BETWEEN_STEPS);
+  performStepSequence(nullptr, &Y1, nullptr, positions);
+
+  setHigh(RELAIS[0]);
+  setLow(RELAIS[2]);
+
+  performStepSequence(nullptr, &Y0, &Z1, positions);
+
+  performStepSequence(&X0, nullptr, &Z0, positions);
   
-  Position* pos3[] = {&Y0, &Z1};
-  stepYZ(pos3);
-  delay(DELAY_BETWEEN_STEPS);
-
-  Position* pos4[] = {&X0, &Z0};
-  stepXZ(pos4);
-  delay(DELAY_BETWEEN_STEPS);
-
-  makeSteps(&stepperE0, 400, -1);
+  makeSteps(3, 400, -1);
 }
+
 
 void peakTipFunc() {
-  Position* X2;
-  Position* X3;
+  DynPosition xDynPos, yDynPos, zDynPos;
+  DynPosition* positions[3] = {&xDynPos, &yDynPos, &zDynPos};
+  
+  Position* X2 = nullptr;
+  Position* X3 = nullptr;
 
-  switch(activeProgram->peakMode) {
-    case PEAK_55:
+  switch(peak) {
+    case Peak::PEAK_55:
       X2 = &peak55X2;
       X3 = &peak55X3;
       break;
 
-    case PEAK_60:
+    case Peak::PEAK_60:
       X2 = &peak60X2;
       X3 = &peak60X3;
       break;
 
-    case SINGLE_SIDE:
+    case Peak::SINGLE_SIDE:
       X2 = &singleSideX2;
       break;
 
     default:
-      Serial.println("no peak configured");
       return;
   }
 
-  setHigh(MESA_IN1);
-  Serial.println("Mesa in 1 high");
-  delay(DELAY_BETWEEN_STEPS);
+  setHigh(MESA_IN[0]);
+  
+  setLow(MESA_OUT[0]);
 
-  setLow(MESA_OUT1);
-  Serial.println("Mesa out 1 low");
-  delay(DELAY_BETWEEN_STEPS);
+  barrelLoadFunc(&xDynPos, &yDynPos, &zDynPos);
 
-  barrelLoadFunc();
-  Serial.println("barrel loaded");
-  delay(DELAY_BETWEEN_STEPS);
-
-  Position* pos1[] = {&X1, &Y2, &Z2};
-  stepXYZ(pos1);
-  Serial.println("drived position 1");
-  delay(DELAY_BETWEEN_STEPS);
+  performStepSequence(&X1, &Y2, &Z2, positions);
 
   // TODO request open chuck
-
-  Position* pos2 = X2;
-  loadPosition(pos2);
-  step(pos2);
-  Serial.println("drived position 2");
-  delay(DELAY_BETWEEN_STEPS);
-
+  
+  performStepSequence(X2, nullptr, nullptr, positions);
+  
   // TODO request close chuck
 
-  setLow(RELAIS1);
-  Serial.println("relais 1 low");
-  delay(DELAY_BETWEEN_STEPS);
+  setLow(RELAIS[0]);
 
-  Position* pos3[] = {&X1, &Y0, &Z0};
-  stepXYZ(pos3);
-  Serial.println("drived position 3");
-  delay(DELAY_BETWEEN_STEPS);
-
-  setHigh(MESA_OUT1);
-  Serial.println("Mesa out 1 high");
-  delay(DELAY_BETWEEN_STEPS);
-
-  setHigh(MESA_IN1); 
-  Serial.println("Mesa in 1 high");
-  delay(DELAY_BETWEEN_STEPS);
-
-  setLow(MESA_OUT1);
-  Serial.println("Mesa out 1 low");
-  delay(DELAY_BETWEEN_STEPS);
-
-  Position* pos4[] = {X2, &Y2, &Z2};
-  stepXYZ(pos4);
-  Serial.println("drived position 4");
-  delay(DELAY_BETWEEN_STEPS);
-
-  setHigh(RELAIS1);
-  Serial.println("relais 1 high");
-  delay(DELAY_BETWEEN_STEPS);
-
+  performStepSequence(&X1, &Y0, &Z0, positions);
+  
+  setHigh(MESA_OUT[0]);
+  setHigh(MESA_IN[0]); 
+  setLow(MESA_OUT[0]);
+  
+  performStepSequence(X2, &Y2, &Z2, positions);
+  
+  setHigh(RELAIS[0]);
+  
   // TODO request open chuck
 
-  Position* pos5 = &X1;
-  loadPosition(pos5);
-  step(pos5);
-  Serial.println("drived position 5");
-  delay(DELAY_BETWEEN_STEPS);
+  performStepSequence(&X1, nullptr, nullptr, positions);
 
-  placeBarrelFunc();
-  Serial.println("barrel placed");
+  placeBarrelFunc(&xDynPos, &yDynPos, &zDynPos);
 }
