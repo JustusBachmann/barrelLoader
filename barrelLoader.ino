@@ -5,6 +5,8 @@
 #include <MultiStepper.h>
 #include <EEPROM.h>
 #include <avr/pgmspace.h>
+#include <avr/io.h>
+#include <avr/interrupt.h>
 
 #ifdef U8X8_HAVE_HW_I2C
 #include <Wire.h>
@@ -306,6 +308,7 @@ uint8_t activePageLength = 0;
 uint8_t historyIndex = 0;
 uint8_t selectedIndex = 0;
 uint8_t topIndex = 0;
+volatile bool reloadTriggered = false;
 #pragma endregion
 
 #pragma region encoder
