@@ -1,4 +1,14 @@
 void setup() {
+  cli();
+  // Timer1 Configuration
+  TCCR1A = 0;
+  TCCR1B = 0;
+  TCNT1 = 0;
+  OCR1A = 62499; // Set compare match value for a 5-second delay
+  TCCR1B |= (1 << WGM12); // Configure Timer1 in CTC mode
+  TCCR1B |= (1 << CS12);  // Set prescaler to 256
+  TIMSK1 |= (1 << OCIE1A); // Enable Timer Compare Interrupt
+
   Serial.begin(115200);
 
   pinMode(ENCODER_CLK, INPUT_PULLUP);
@@ -29,14 +39,16 @@ void setup() {
   u8g2.begin();
   loadActivePage(&mainMenu);
   navigationHistory[historyIndex] = &mainMenu;
-  Program activeProgram;
-  draw(renderProgram);
-  loadFromProgmem(&activeProgram, &clearEepromProg);
-  activeProgram.programFunction();
+  // Program activeProgram;
+  // draw(renderProgram);
+  // loadFromProgmem(&activeProgram, &clearEepromProg);
+  // activeProgram.programFunction();
 
   initializeSteppers();
   draw(renderMenu);
   state = State::IDLE;
+
+  sei();
 }
 
 void loop() {
@@ -74,6 +86,11 @@ void loop() {
       return;
 
     case State::SETPOSITION:
+      if (reloadTriggered) {
+          reloadTriggered = false; // Reset flag
+          draw(renderPosition);
+      }
+
       if (digitalRead(ENCODER_SW) == LOW) {
         waitForButtonRelease();
         while (!destinationReached(currentPosition.axis)) {
@@ -91,7 +108,6 @@ void loop() {
         }
 
         resetDetection();
-        draw(renderPosition);
       }
 
       if (stop(currentPosition.axis)) {
