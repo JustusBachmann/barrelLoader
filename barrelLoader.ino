@@ -69,17 +69,6 @@ public:
 
 class CustomHardwareUtils : public HardwareUtils {
 public:
-  struct EncoderState {
-    unsigned long clkLowTime;
-    unsigned long dtLowTime;
-    bool buttonPressed;
-    bool clkLowDetected;
-    bool dtLowDetected;
-  };
-
-  EncoderState encoderState = {0, 0, false, false, false};
-  unsigned long lastMillis = millis();
-
   bool detectButton() override {
     if (digitalRead(ENCODER_SW) == LOW) {
       waitForButtonRelease();
@@ -95,7 +84,7 @@ public:
         encoderState.clkLowDetected = true;
         encoderState.clkLowTime = millis();
       }
-  
+
       if (digitalRead(ENCODER_DT) == LOW && !encoderState.dtLowDetected) {
         encoderState.dtLowDetected = true;
         encoderState.dtLowTime = millis();
@@ -104,16 +93,28 @@ public:
 
     if (encoderState.clkLowDetected && encoderState.dtLowDetected) {
       if (encoderState.clkLowTime < encoderState.dtLowTime) {
+        resetDetection();
         return SCROLL_STEP;
       } else if (encoderState.dtLowTime < encoderState.clkLowTime) {
+        resetDetection();
         return -SCROLL_STEP;
       }
-      resetDetection();
     }
     return 0;
   }
 
 private:
+  struct EncoderState {
+    unsigned long clkLowTime;
+    unsigned long dtLowTime;
+    bool buttonPressed;
+    bool clkLowDetected;
+    bool dtLowDetected;
+  };
+
+  EncoderState encoderState = {0, 0, false, false, false};
+  unsigned long lastMillis = millis();
+
   void resetDetection() { encoderState = {0, 0, false, false, false}; }
 
   void waitForButtonRelease() {
@@ -156,49 +157,49 @@ ISR(TIMER1_COMPA_vect) {
 }
 
 void setup() {
-  cli();
+  // cli();
   // Timer1 Configuration
-  TCCR1A = 0;
-  TCCR1B = 0;
-  TCNT1 = 0;
-  OCR1A = 62499;           // Set compare match value for a 5-second delay
-  TCCR1B |= (1 << WGM12);  // Configure Timer1 in CTC mode
-  TCCR1B |= (1 << CS12);   // Set prescaler to 256
-  TIMSK1 |= (1 << OCIE1A); // Enable Timer Compare Interrupt
+  // TCCR1A = 0;
+  // TCCR1B = 0;
+  // TCNT1 = 0;
+  // OCR1A = 62499;           // Set compare match value for a 5-second delay
+  // TCCR1B |= (1 << WGM12);  // Configure Timer1 in CTC mode
+  // TCCR1B |= (1 << CS12);   // Set prescaler to 256
+  // TIMSK1 |= (1 << OCIE1A); // Enable Timer Compare Interrupt
 
   Serial.begin(115200);
 
-  pinMode(ENCODER_CLK, INPUT_PULLUP);
-  pinMode(ENCODER_DT, INPUT_PULLUP);
-  pinMode(ENCODER_SW, INPUT_PULLUP);
+  // pinMode(ENCODER_CLK, INPUT_PULLUP);
+  // pinMode(ENCODER_DT, INPUT_PULLUP);
+  // pinMode(ENCODER_SW, INPUT_PULLUP);
 
-  for (uint8_t i = 0; i < 5; i++) {
-    pinMode(DRV_ENABLE[i], OUTPUT);
-    HardwareUtils::setLow(DRV_ENABLE[i]);
-  }
+  // for (uint8_t i = 0; i < 5; i++) {
+  //   pinMode(DRV_ENABLE[i], OUTPUT);
+  //   HardwareUtils::setLow(DRV_ENABLE[i]);
+  // }
 
-  for (uint8_t i = 0; i < 4; i++) {
-    pinMode(ENDSTOP[i], INPUT_PULLUP);
-  }
+  // for (uint8_t i = 0; i < 4; i++) {
+  //   pinMode(ENDSTOP[i], INPUT_PULLUP);
+  // }
 
-  for (uint8_t i = 0; i < 3; i++) {
-    pinMode(MESA_OUT[i], OUTPUT);
-  }
+  // for (uint8_t i = 0; i < 3; i++) {
+  //   pinMode(MESA_OUT[i], OUTPUT);
+  // }
 
-  for (uint8_t i = 0; i < 3; i++) {
-    pinMode(RELAIS[i], OUTPUT);
-  }
+  // for (uint8_t i = 0; i < 3; i++) {
+  //   pinMode(RELAIS[i], OUTPUT);
+  // }
 
-  for (uint8_t i = 0; i < 3; i++) {
-    pinMode(MESA_IN[i], INPUT);
-  }
+  // for (uint8_t i = 0; i < 3; i++) {
+  //   pinMode(MESA_IN[i], INPUT);
+  // }
 
   u8g2.begin();
   menu.loadPage(&mainMenu);
   menu.navigationHistory[menu.historyIndex] = &mainMenu;
   menu.clear();
 
-  sei();
+  // sei();
 }
 
 void loop() {
@@ -213,8 +214,9 @@ void loop() {
     int8_t dir = utils.detectScroll();
     if (dir != 0) {
       menu.clampAndScroll(dir);
+      menu.redraw();
     }
-    return;
+    break;
 
   case State::SETTING:
     if (reloadTriggered) {
@@ -236,29 +238,15 @@ void loop() {
 
     if (stop(currentPosition.axis)) {
       steppers[currentPosition.axis].stop();
-      return;
+      break;
     }
     steppers[currentPosition.axis].run();
-    return;
+    break;
 
   default:
-    return;
+    break;
   }
-}
-
-void setPosition(int8_t dir) {
-  newPosition.value += STEP_SIZE * dir;
-  DynPosition *positions[1];
-  positions[0] = {&newPosition};
-  step(positions, 1);
-}
-
-void saveNewPosition() {
-  if (currentPosition.pos != nullptr) {
-    currentPosition.value = newPosition.value;
-    // saveToEeprom(&currentPosition);
-  }
-  menu.clear();
+  delay(100);
 }
 
 void renderMenu() {
@@ -314,6 +302,21 @@ void renderPosition() {
   u8g2.print(newPosition.value);
 }
 
+void setPosition(int8_t dir) {
+  newPosition.value += STEP_SIZE * dir;
+  DynPosition *positions[1];
+  positions[0] = {&newPosition};
+  step(positions, 1);
+}
+
+void saveNewPosition() {
+  if (currentPosition.pos != nullptr) {
+    currentPosition.value = newPosition.value;
+    // saveToEeprom(&currentPosition);
+  }
+  menu.clear();
+}
+
 // void driveToEndstop(uint8_t axis, int8_t dir) {
 //     steppers[axis].setSpeed(dir * HOMING_SPEED);
 //     while (!stop(axis)) {
@@ -323,9 +326,7 @@ void renderPosition() {
 //     steppers[axis].setCurrentPosition(0);
 //   }
 
-  bool stop(uint8_t axis) {
-    return digitalRead(ENDSTOP[axis]) == LOW;
-  }
+bool stop(uint8_t axis) { return digitalRead(ENDSTOP[axis]) == LOW; }
 
 //   void makeSteps(uint8_t axis, int steps, int8_t dir) {
 //     steppers[axis].move(dir * steps);

@@ -4,7 +4,7 @@
 #include <Arduino.h>
 
 #define MAX_HISTORY 4
-#define LINES_PER_PAGE 2
+#define LINES_PER_PAGE 8
 
 
 enum class State : uint8_t { WAITING = 0, IDLE = 1, WORKING = 2, SETTING = 3 };
