@@ -1,12 +1,11 @@
 #include "config.h"
 #include "menuData.h"
-#include <AccelStepper.h>
-#include <MultiStepper.h>
 #include <U8g2lib.h>
 #include <Wire.h>
 #include <avr/interrupt.h>
 #include <avr/io.h>
 #include <hardwareUtils.h>
+#include "stepperUtils.h"
 #include <menu.h>
 #include <storage.h>
 
@@ -15,12 +14,13 @@
 #endif
 
 U8G2_SH1107_PIMORONI_128X128_F_HW_I2C u8g2(U8G2_R0);
-AccelStepper steppers[5]; // X, Y, Z, E0, E1
-MultiStepper steppersXYZ;
 Storage storage;
+StepperUtils sUtils;
+
+void renderPosition();
 
 class CustomMenu : public Menu {
-public:
+  public:
   void draw(void (*renderFunction)()) override {
     u8g2.firstPage();
     u8g2.setFont(u8g2_font_ncenB08_tr);
@@ -30,40 +30,19 @@ public:
     } while (u8g2.nextPage());
   }
 
-  void processProgram(const Program *program) override {
-    TIMSK1 &= ~(1 << OCIE2A); // Disable timer interrupt
-    // void processProgramItem(int programIndex) {
-    //     const Program *programPtr = getFromProgmem(activePage.programs,
-    //     programIndex); if (checkCrc() || programPtr == &clearEepromProg) {
-    //       state = State::RUNNING;
-    //       Program activeProgram;
-    //       loadFromProgmem(&activeProgram, programPtr);
-    //       draw(renderProgram);
-    //       printFromProgmem(activeProgram.name);
-    //       peak = activeProgram.peakMode;
-    //       activeProgram.programFunction();
-    //       state = State::IDLE;
-    //     }
-    //     draw(renderMenu);
-    //   }
-    TIMSK1 |= (1 << OCIE2A); // Enable timer interrupt
+  void drawPartial(void (*renderFunction)()) {
+    u8g2.setFont(u8g2_font_ncenB08_tr);
+    u8g2.setCursor(0, 10);
+    renderFunction();
+    u8g2.sendBuffer();
   }
 
   void processItem(const Item *item) override {
-    // void processPositionItem(int positionIndex) {
-    //     if (checkCrc()) {
-    //       const Position *positionPtr =
-    //           getFromProgmem(activePage.positions, positionIndex);
-    //       loadCurrentPosFromEeprom(positionPtr);
-    //       draw(renderPosition);
-    //       state = State::SETPOSITION;
-    //       DynPosition *positions[1];
-    //       positions[0] = {&currentPosition};
-    //       step(positions, 1);
-    //     } else {
-    //       draw(renderMenu);
-    //     }
-    //   }
+    storage.loadFromProgmem(&activeItem, item);
+    storage.loadCurrentValueFromEeprom(
+      item, &Item::eepromOffset, currentValue);
+    state = State::SETTING;
+    draw(renderPosition);
   }
 };
 
@@ -71,74 +50,47 @@ class CustomHardwareUtils : public HardwareUtils {
 public:
   bool detectButton() override {
     if (digitalRead(ENCODER_SW) == LOW) {
-      waitForButtonRelease();
-      return true;
+      if (millis() - lastButtonPress > 50) {
+        lastButtonPress = millis();
+        return true;
+      }
     }
     return false;
   }
 
   int8_t detectScroll() override {
-    if (millis() - lastMillis >= DELAY_READ_ENCODER) {
-      lastMillis = millis();
-      if (digitalRead(ENCODER_CLK) == LOW && !encoderState.clkLowDetected) {
-        encoderState.clkLowDetected = true;
-        encoderState.clkLowTime = millis();
-      }
-
-      if (digitalRead(ENCODER_DT) == LOW && !encoderState.dtLowDetected) {
-        encoderState.dtLowDetected = true;
-        encoderState.dtLowTime = millis();
+    int8_t step = 0;
+    currentStateCLK = digitalRead(ENCODER_CLK);
+    if (currentStateCLK != lastStateCLK && currentStateCLK == 1) {
+      if (digitalRead(ENCODER_DT) != currentStateCLK) {
+        step = SCROLL_STEP;
+      } else {
+        step = -SCROLL_STEP;
       }
     }
-
-    if (encoderState.clkLowDetected && encoderState.dtLowDetected) {
-      if (encoderState.clkLowTime < encoderState.dtLowTime) {
-        resetDetection();
-        return SCROLL_STEP;
-      } else if (encoderState.dtLowTime < encoderState.clkLowTime) {
-        resetDetection();
-        return -SCROLL_STEP;
-      }
-    }
-    return 0;
+    lastStateCLK = currentStateCLK;
+    return step;
   }
+
+  void initializePins(const uint8_t* pins, void (*pinModeFunc)(uint8_t)) {
+    uint8_t i = 0;
+    while (pins[i]) {
+      pinModeFunc(pins[i]);
+      i++;
+    }
+  }
+
+  void initEncoder() { lastStateCLK = digitalRead(ENCODER_CLK); }
 
 private:
-  struct EncoderState {
-    unsigned long clkLowTime;
-    unsigned long dtLowTime;
-    bool buttonPressed;
-    bool clkLowDetected;
-    bool dtLowDetected;
-  };
-
-  EncoderState encoderState = {0, 0, false, false, false};
-  unsigned long lastMillis = millis();
-
-  void resetDetection() { encoderState = {0, 0, false, false, false}; }
-
-  void waitForButtonRelease() {
-    const unsigned long debounceDelay = 50;
-    unsigned long lastDebounceTime = 0;
-
-    while (true) {
-      bool currentState = digitalRead(ENCODER_SW);
-      if (currentState == HIGH) {
-        if ((millis() - lastDebounceTime) > debounceDelay) {
-          break;
-        }
-      } else {
-        lastDebounceTime = millis();
-      }
-    }
-    encoderState.buttonPressed = false;
-  }
+  int currentStateCLK;
+  int lastStateCLK;
+  unsigned long lastButtonPress = millis();
 };
 
 CustomHardwareUtils utils;
 CustomMenu menu;
 
-const uint8_t motorInterfaceType = AccelStepper::DRIVER;
 
 struct DynPosition {
   Item *pos;
@@ -148,105 +100,94 @@ struct DynPosition {
 
 DynPosition currentPosition = {nullptr, -1, -1};
 DynPosition newPosition = {nullptr, -1, -1};
-volatile bool reloadTriggered = false;
 
-ISR(TIMER1_COMPA_vect) {
-  if (menu.state == State::SETTING) {
-    reloadTriggered = true; // Set flag to lock screen
-  }
-}
+// --------------------------------------------------------------------------------
+// //
 
 void setup() {
-  // cli();
-  // Timer1 Configuration
-  // TCCR1A = 0;
-  // TCCR1B = 0;
-  // TCNT1 = 0;
-  // OCR1A = 62499;           // Set compare match value for a 5-second delay
-  // TCCR1B |= (1 << WGM12);  // Configure Timer1 in CTC mode
-  // TCCR1B |= (1 << CS12);   // Set prescaler to 256
-  // TIMSK1 |= (1 << OCIE1A); // Enable Timer Compare Interrupt
+  cli();
 
-  Serial.begin(115200);
+  Serial.begin(9600);
 
-  // pinMode(ENCODER_CLK, INPUT_PULLUP);
-  // pinMode(ENCODER_DT, INPUT_PULLUP);
-  // pinMode(ENCODER_SW, INPUT_PULLUP);
+  pinMode(ENCODER_CLK, INPUT_PULLUP);
+  pinMode(ENCODER_DT, INPUT_PULLUP);
+  pinMode(ENCODER_SW, INPUT_PULLUP);
+  utils.initEncoder();
 
-  // for (uint8_t i = 0; i < 5; i++) {
-  //   pinMode(DRV_ENABLE[i], OUTPUT);
-  //   HardwareUtils::setLow(DRV_ENABLE[i]);
-  // }
+  utils.initializePins(DRV_ENABLE, [](uint8_t pin) { pinMode(pin, OUTPUT); HardwareUtils::setLow(pin); });
+  utils.initializePins(ENDSTOP, [](uint8_t pin) { pinMode(pin, INPUT_PULLUP); attachInterrupt(digitalPinToInterrupt(pin), endstopReached, FALLING); });
+  utils.initializePins(MESA_OUT, [](uint8_t pin) { pinMode(pin, OUTPUT); });
+  utils.initializePins(RELAIS, [](uint8_t pin) { pinMode(pin, OUTPUT); });
+  utils.initializePins(MESA_IN, [](uint8_t pin) { pinMode(pin, INPUT); });
+  sUtils.initializeSteppers();
 
-  // for (uint8_t i = 0; i < 4; i++) {
-  //   pinMode(ENDSTOP[i], INPUT_PULLUP);
-  // }
-
-  // for (uint8_t i = 0; i < 3; i++) {
-  //   pinMode(MESA_OUT[i], OUTPUT);
-  // }
-
-  // for (uint8_t i = 0; i < 3; i++) {
-  //   pinMode(RELAIS[i], OUTPUT);
-  // }
-
-  // for (uint8_t i = 0; i < 3; i++) {
-  //   pinMode(MESA_IN[i], INPUT);
-  // }
+  sei();
 
   u8g2.begin();
   menu.loadPage(&mainMenu);
   menu.navigationHistory[menu.historyIndex] = &mainMenu;
   menu.clear();
 
-  // sei();
 }
 
 void loop() {
-  delay(1);
-
+  if (sUtils.stopStepper) {
+    sUtils.stopStepper = false;
+  }
   switch (menu.state) {
   case State::IDLE:
-    if (utils.detectButton()) {
-      menu.handleButtonPressed();
-    }
-
-    int8_t dir = utils.detectScroll();
-    if (dir != 0) {
-      menu.clampAndScroll(dir);
-      menu.redraw();
-    }
+    handleIdleState();
     break;
 
   case State::SETTING:
-    if (reloadTriggered) {
-      reloadTriggered = false; // Reset flag
-      menu.draw(renderPosition);
-    }
-
-    if (utils.detectButton()) {
-      while (!destinationReached(currentPosition.axis)) {
-        steppers[currentPosition.axis].run();
-      }
-      saveNewPosition();
-    }
-
-    int8_t direction = utils.detectScroll();
-    if (direction != 0) {
-      setPosition(direction);
-    }
-
-    if (stop(currentPosition.axis)) {
-      steppers[currentPosition.axis].stop();
-      break;
-    }
-    steppers[currentPosition.axis].run();
+  handleSettingState();
     break;
 
   default:
     break;
   }
-  delay(100);
+  delay(1);
+}
+
+void endstopReached() {
+  sUtils.stopStepper = true;
+}
+
+// --------------------------------------------------------------------------------
+// //
+
+void handleIdleState() {
+  if (utils.detectButton()) {
+    menu.handleButtonPressed();
+  }
+  int8_t dir = utils.detectScroll();
+  if (dir != 0) {
+    menu.clampAndScroll(dir);
+  }
+}
+
+void handleSettingState() {
+  if (utils.detectButton()) {
+    // while (!sUtils.destinationReached(currentPosition.axis)) {
+    //   sUtils.steppers[currentPosition.axis].run();
+    // }
+    storage.saveToEeprom(&menu.activeItem, &Item::eepromOffset,
+      menu.currentValue);
+    menu.clear();
+  }
+
+  int8_t direction = utils.detectScroll();
+  if (direction != 0) {
+    menu.drawPartial(renderNewPosition);
+    menu.currentValue += sUtils.STEP_SIZE * direction;
+    sUtils.moveTo(menu.activeItem.axis, menu.currentValue);
+  }
+
+  // if (sUtils.stop(currentPosition.axis)) {
+  //   sUtils.steppers[currentPosition.axis].stop();
+  //   return;
+  // }
+  sUtils.steppers[menu.activeItem.axis].run();
 }
 
 void renderMenu() {
@@ -289,98 +230,41 @@ void renderMenu() {
 
 void renderProgram() { u8g2.print("Running..."); }
 
+void renderNewPosition() {
+  u8g2.setCursor(10, 36);
+  u8g2.print(menu.currentValue);
+}
+
 void renderPosition() {
-  //   printFromProgmem(currentPosition.pos);
+  u8g2.print(storage.printFromProgmem(menu.activeItem.name));
 
   u8g2.drawLine(0, 12, 128, 12);
 
   u8g2.setCursor(5, 24);
   u8g2.print("old: ");
-  u8g2.print(currentPosition.value);
+  u8g2.print(menu.currentValue);
   u8g2.setCursor(5, 36);
   u8g2.print("new: ");
-  u8g2.print(newPosition.value);
+  u8g2.print(menu.currentValue);
 }
 
-void setPosition(int8_t dir) {
-  newPosition.value += STEP_SIZE * dir;
-  DynPosition *positions[1];
-  positions[0] = {&newPosition};
-  step(positions, 1);
-}
+void renderClearEeprom() { u8g2.print(F("clear eeprom ...")); }
 
-void saveNewPosition() {
-  if (currentPosition.pos != nullptr) {
-    currentPosition.value = newPosition.value;
-    // saveToEeprom(&currentPosition);
-  }
+void clearEepromFunc() {
+  menu.draw(renderClearEeprom);
+  storage.clearEeprom();
   menu.clear();
 }
 
-// void driveToEndstop(uint8_t axis, int8_t dir) {
-//     steppers[axis].setSpeed(dir * HOMING_SPEED);
-//     while (!stop(axis)) {
-//       steppers[axis].runSpeed();
-//     }
-//     steppers[axis].stop();
-//     steppers[axis].setCurrentPosition(0);
-//   }
-
-bool stop(uint8_t axis) { return digitalRead(ENDSTOP[axis]) == LOW; }
-
-//   void makeSteps(uint8_t axis, int steps, int8_t dir) {
-//     steppers[axis].move(dir * steps);
-//     steppers[axis].runToPosition();
-//   }
-
-void step(DynPosition *pos[], uint8_t count) {
-  //     long destPos[3] = {steppers[0].currentPosition(),
-  //     steppers[1].currentPosition(), steppers[2].currentPosition()}; for
-  //     (uint8_t i = 0; i < count; i++) {
-  //       if (pos[i] != nullptr) {
-  //         destPos[pos[i]->axis] = pos[i]->value;
-  //       }
-  //     }
-  //     steppersXYZ.moveTo(destPos);
-}
-
-//   void performStepSequence(Item* xPos, Item* yPos, Item* zPos, DynPosition*
-//   positions[]) {
-//     if (xPos) getFromEeprom(xPos, positions[0]);
-//     if (yPos) getFromEeprom(yPos, positions[1]);
-//     if (zPos) getFromEeprom(zPos, positions[2]);
-//     step(positions, 3);
-//     steppersXYZ.runSpeedToPosition();
-//     delay(DELAY_BETWEEN_STEPS);
-//   }
-
-bool destinationReached(int stepperID) {
-  if (steppers[stepperID].distanceToGo() == 0) {
-    return true;
-  }
-  return false;
-}
-
-void initializeSteppers() {
-  for (int i = 0; i < 5; i++) {
-    steppers[i] = AccelStepper(motorInterfaceType, DRV_STEP[i], DRV_DIR[i]);
-    steppers[i].setMaxSpeed(PROGRAM_SPEED);
-    steppers[i].setAcceleration(ACCELERATION);
-  }
-
-  steppersXYZ.addStepper(steppers[0]);
-  steppersXYZ.addStepper(steppers[1]);
-  steppersXYZ.addStepper(steppers[2]);
-}
-
 void findHome() {
+  menu.draw(renderProgram);
   // loadCurrentPosFromEeprom(&X0);
-  // driveToEndstop(0, -1);
+  sUtils.driveToEndstop(0, -1);
   // currentPosition.value = 0;
   // saveToEeprom(&currentPosition);
 
   // loadCurrentPosFromEeprom(&Y0);
-  // driveToEndstop(1, 1);
+  sUtils.driveToEndstop(1, 1);
   // currentPosition.value = 0;
   // saveToEeprom(&currentPosition);
 
@@ -389,6 +273,7 @@ void findHome() {
   // driveToEndstop(2, 1);
   // currentPosition.value = 0;
   // saveToEeprom(&currentPosition);
+  menu.clear();
 }
 
 void placeBarrelFunc(DynPosition *xDynPos, DynPosition *yDynPos,
@@ -494,12 +379,4 @@ void peakTipFunc() {
   // performStepSequence(&X1, nullptr, nullptr, positions);
 
   // placeBarrelFunc(&xDynPos, &yDynPos, &zDynPos);
-}
-
-void renderClearEeprom() { u8g2.print(F("clear eeprom ...")); }
-
-void clearEepromFunc() {
-  menu.draw(renderClearEeprom);
-  storage.clearEeprom();
-  menu.clear();
 }
