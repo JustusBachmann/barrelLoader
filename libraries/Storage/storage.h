@@ -27,7 +27,7 @@ class Storage {
     }
 
     template <typename T>
-    void saveToEeprom(const Item* item, const T Item::* offsetField, uint16_t& value) {
+    void saveToEeprom(const Item* item, const T Item::* offsetField, int16_t& value) {
       int baseAddr = item->*offsetField * lengthOfInt16_t + crcLength;
 
       write16BitToEEPROM(baseAddr, value);
@@ -36,7 +36,7 @@ class Storage {
     }
 
     template <typename T>
-    void loadCurrentValueFromEeprom(const Item* itemPtr, const T Item::* offsetField, uint16_t& currentValue) {
+    void loadCurrentValueFromEeprom(const Item* itemPtr, const T Item::* offsetField, int16_t& currentValue) {
         int baseAddr = loadOffsetFromProgmem(itemPtr, offsetField) * lengthOfInt16_t + crcLength;
 
         if (baseAddr + lengthOfInt16_t > EEPROM.length()) {
@@ -70,11 +70,11 @@ class Storage {
         }
     }
     
-    uint16_t read16BitFromEEPROM(int address) {
-      return EEPROM.read(address) | ((uint16_t)EEPROM.read(address + 1) << 8);
+    int16_t read16BitFromEEPROM(int address) {
+      return EEPROM.read(address) | ((int16_t)EEPROM.read(address + 1) << 8);
     }
 
-    void write16BitToEEPROM(int address, uint16_t value) {
+    void write16BitToEEPROM(int address, int16_t value) {
         writeByteToEEPROM(address, value & 0xFF);
         writeByteToEEPROM(address + 1, (value >> 8) & 0xFF);
     }

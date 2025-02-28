@@ -9,15 +9,12 @@
 #include <menu.h>
 #include <storage.h>
 
-#ifdef U8X8_HAVE_HW_I2C
-#include <Wire.h>
-#endif
-
 U8G2_SH1107_PIMORONI_128X128_F_HW_I2C u8g2(U8G2_R0);
 Storage storage;
 StepperUtils sUtils;
 
 void renderPosition();
+void renderJog();
 
 class CustomMenu : public Menu {
 public:
@@ -41,7 +38,11 @@ public:
     storage.loadFromProgmem(&activeItem, item);
     storage.loadCurrentValueFromEeprom(item, &Item::eepromOffset, currentValue);
     state = State::SETTING;
-    draw(renderPosition);
+    if (activePage.name == &jogAxesStr) {
+      draw(renderJog);
+    } else {
+      draw(renderPosition);
+    }
   }
 };
 
@@ -89,15 +90,6 @@ private:
 
 CustomHardwareUtils utils;
 CustomMenu menu;
-
-struct DynPosition {
-  Item *pos;
-  uint8_t axis; // X = 0, Y = 1, Z = 2
-  int16_t value;
-};
-
-DynPosition currentPosition = {nullptr, -1, -1};
-DynPosition newPosition = {nullptr, -1, -1};
 
 // --------------------------------------------------------------------------------
 // //
@@ -149,10 +141,10 @@ void loop() {
   delay(1);
 }
 
-void endstopReached() { 
+void endstopReached() {
   if (menu.activeItem.name != nullptr) {
     sUtils.stopStepper[menu.activeItem.axis] = true;
-  } 
+  }
 }
 
 void freeAxesFunc() {
@@ -175,22 +167,27 @@ void handleIdleState() {
 
 void handleSettingState() {
   if (utils.detectButton()) {
-    while (!sUtils.destinationReached(menu.activeItem.axis) && !sUtils.stopStepper) {
-      sUtils.steppers[menu.activeItem.axis].run();
+    while (!sUtils.destinationReached(menu.activeItem.axis) &&
+           !sUtils.stopStepper[menu.activeItem.axis]) {
+      sUtils.run(menu.activeItem.axis);
     }
-    storage.saveToEeprom(&menu.activeItem, &Item::eepromOffset,
-                         menu.currentValue);
+    if (menu.activePage.name != &jogAxesStr) {
+      storage.saveToEeprom(&menu.activeItem, &Item::eepromOffset,
+                           menu.currentValue);
+    }
     menu.clear();
+    menu.loadPage(&jogAxes);
+    menu.redraw();
   }
 
-  if (!sUtils.stopStepper) {
+  if (!sUtils.stopStepper[menu.activeItem.axis]) {
     int8_t direction = utils.detectScroll();
     if (direction != 0) {
       menu.drawPartial(renderNewPosition);
       menu.currentValue += sUtils.STEP_SIZE * direction;
       sUtils.moveTo(menu.activeItem.axis, menu.currentValue);
     }
-    sUtils.steppers[menu.activeItem.axis].run();
+    sUtils.run(menu.activeItem.axis);
   }
 }
 
@@ -252,6 +249,15 @@ void renderPosition() {
   u8g2.print(menu.currentValue);
 }
 
+void renderJog() {
+  u8g2.print(storage.printFromProgmem(menu.activeItem.name));
+
+  u8g2.drawLine(0, 12, 128, 12);
+
+  u8g2.setCursor(10, 36);
+  u8g2.print(menu.currentValue);
+}
+
 void renderClearEeprom() { u8g2.print(F("clear eeprom ...")); }
 
 void clearEepromFunc() {
@@ -264,124 +270,132 @@ void findHome() {
   menu.draw(renderProgram);
   storage.loadFromProgmem(&menu.activeItem, &X0);
   sUtils.driveToEndstop(0, -1);
-  storage.saveToEeprom(&menu.activeItem, &Item::eepromOffset, menu.currentValue);
+  storage.saveToEeprom(&menu.activeItem, &Item::eepromOffset,
+                       menu.currentValue);
   delay(sUtils.DELAY_BETWEEN_STEPS);
 
   storage.loadFromProgmem(&menu.activeItem, &Y0);
   sUtils.driveToEndstop(1, 1);
-  storage.saveToEeprom(&menu.activeItem, &Item::eepromOffset, menu.currentValue);
+  storage.saveToEeprom(&menu.activeItem, &Item::eepromOffset,
+                       menu.currentValue);
   delay(sUtils.DELAY_BETWEEN_STEPS);
 
-  // makeSteps(2, 2500, -1);
   storage.loadFromProgmem(&menu.activeItem, &Z0);
+  sUtils.makeSteps(menu.activeItem.axis, -2500);
   sUtils.driveToEndstop(2, 1);
-  storage.saveToEeprom(&menu.activeItem, &Item::eepromOffset, menu.currentValue);
+  storage.saveToEeprom(&menu.activeItem, &Item::eepromOffset,
+                       menu.currentValue);
   delay(sUtils.DELAY_BETWEEN_STEPS);
   freeAxesFunc();
   menu.clear();
 }
 
-void placeBarrelFunc(DynPosition *xDynPos, DynPosition *yDynPos,
-                     DynPosition *zDynPos) {
-  // DynPosition* positions[3] = {xDynPos, yDynPos, zDynPos};
+void placeBarrelFunc() {
+  Item *pos[] = {&Y0, &Z0};
+  sUtils.performStepSequence(pos);
 
-  // performStepSequence(nullptr, &Y0, &Z0, positions);
+  Item *pos2[] = {&X4};
+  sUtils.performStepSequence(pos2);
 
-  // performStepSequence(&X4, nullptr, nullptr, positions);
+  Item *pos3[] = {&Y4, &Z4};
+  sUtils.performStepSequence(pos3);
 
-  // performStepSequence(nullptr, &Y4, &Z4, positions);
+  utils.setLow(RELAIS[0]);
 
-  // setLow(RELAIS[0]);
+  Item *pos4[] = {&Y0, &Z0};
+  sUtils.performStepSequence(pos4);
 
-  // performStepSequence(nullptr, &Y0, &Z0, positions);
-
-  // performStepSequence(&X0, nullptr, nullptr, positions);
+  Item *pos5[] = {&X0};
+  sUtils.performStepSequence(pos5);
 }
 
-void barrelLoadFunc(DynPosition *xDynPos, DynPosition *yDynPos,
-                    DynPosition *zDynPos) {
-  // DynPosition* positions[3] = {xDynPos, yDynPos, zDynPos};
+void barrelLoadFunc() {
+  Item *pos[] = {&X0, &Y0, &Z0};
+  sUtils.performStepSequence(pos);
 
-  // performStepSequence(&X0, &Y0, &Z0, positions);
+  utils.setLow(RELAIS[0]);
+  utils.setHigh(RELAIS[1]);
+  utils.setLow(RELAIS[2]);
 
-  // setLow(RELAIS[0]);
-  // setHigh(RELAIS[1]);
-  // setLow(RELAIS[2]);
+  sUtils.makeSteps(3, 400);
 
-  // makeSteps(3, 400, 1);
+  utils.setLow(RELAIS[1]);
+  utils.setHigh(RELAIS[2]);
 
-  // delay(1000);
+  Item *pos2[] = {&Y1};
+  sUtils.performStepSequence(pos2);
 
-  // setLow(RELAIS[1]);
-  // setHigh(RELAIS[2]);
+  utils.setHigh(RELAIS[0]);
+  utils.setLow(RELAIS[2]);
 
-  // performStepSequence(nullptr, &Y1, nullptr, positions);
+  Item *pos3[] = {&Y0, &Z1};
+  sUtils.performStepSequence(pos3);
 
-  // setHigh(RELAIS[0]);
-  // setLow(RELAIS[2]);
+  Item *pos4[] = {&X0, &Z0};
+  sUtils.performStepSequence(pos4);
 
-  // performStepSequence(nullptr, &Y0, &Z1, positions);
-
-  // performStepSequence(&X0, nullptr, &Z0, positions);
-
-  // makeSteps(3, 400, -1);
+  sUtils.makeSteps(3, -400);
 }
 
 void peakTipFunc() {
-  // DynPosition xDynPos, yDynPos, zDynPos;
-  // DynPosition* positions[3] = {&xDynPos, &yDynPos, &zDynPos};
+  menu.draw(renderProgram);
 
-  // Position* X2 = nullptr;
-  // Position* X3 = nullptr;
+  Item *X2 = nullptr;
+  Item *X3 = nullptr;
+  switch (menu.activeProgram.peakMode) {
+  case Peak::PEAK_55:
+    X2 = &peak55X2;
+    X3 = &peak55X3;
+    Serial.println("peak55");
+    break;
 
-  // switch(peak) {
-  //   case Peak::PEAK_55:
-  //     X2 = &peak55X2;
-  //     X3 = &peak55X3;
-  //     break;
+  case Peak::PEAK_60:
+    X2 = &peak60X2;
+    X3 = &peak60X3;
+    break;
 
-  //   case Peak::PEAK_60:
-  //     X2 = &peak60X2;
-  //     X3 = &peak60X3;
-  //     break;
+  case Peak::SINGLE_SIDE:
+    X2 = &singleSideX2;
+    break;
 
-  //   case Peak::SINGLE_SIDE:
-  //     X2 = &singleSideX2;
-  //     break;
+  default:
+    return;
+  }
 
-  //   default:
-  //     return;
-  // }
+  utils.setHigh(MESA_IN[0]);
 
-  // setHigh(MESA_IN[0]);
+  utils.setLow(MESA_OUT[0]);
 
-  // setLow(MESA_OUT[0]);
+  barrelLoadFunc();
 
-  // barrelLoadFunc(&xDynPos, &yDynPos, &zDynPos);
+  Item *pos[] = {&X1, &Y2, &Z2};
+  sUtils.performStepSequence(pos);
 
-  // performStepSequence(&X1, &Y2, &Z2, positions);
+  // TODO request open chuck
+  Item *pos2[] = {X2};
+  sUtils.performStepSequence(pos2);
 
-  // // TODO request open chuck
+  // TODO request close chuck
 
-  // performStepSequence(X2, nullptr, nullptr, positions);
+  utils.setLow(RELAIS[0]);
 
-  // // TODO request close chuck
+  Item *pos3[] = {&X1, &Y0, &Z0};
+  sUtils.performStepSequence(pos3);
 
-  // setLow(RELAIS[0]);
+  utils.setHigh(MESA_OUT[0]);
+  utils.setHigh(MESA_IN[0]);
+  utils.setLow(MESA_OUT[0]);
 
-  // performStepSequence(&X1, &Y0, &Z0, positions);
+  Item *pos4[] = {X2, &Y2, &Z2};
+  sUtils.performStepSequence(pos4);
 
-  // setHigh(MESA_OUT[0]);
-  // setHigh(MESA_IN[0]);
-  // setLow(MESA_OUT[0]);
+  utils.setHigh(RELAIS[0]);
 
-  // performStepSequence(X2, &Y2, &Z2, positions);
+  // TODO request open chuck
 
-  // setHigh(RELAIS[0]);
+  Item *pos5[] = {&X1};
+  sUtils.performStepSequence(pos5);
 
-  // // TODO request open chuck
-
-  // performStepSequence(&X1, nullptr, nullptr, positions);
-
-  // placeBarrelFunc(&xDynPos, &yDynPos, &zDynPos);
+  placeBarrelFunc();
+  menu.clear();
 }

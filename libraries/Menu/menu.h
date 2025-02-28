@@ -53,7 +53,7 @@ class Menu {
     MenuPage activePage;
     Program activeProgram;
     Item activeItem;
-    uint16_t currentValue = 0;
+    int16_t currentValue = 0;
     MenuPage *navigationHistory[MAX_HISTORY];
     uint8_t historyIndex = 0;
     volatile State state = State::IDLE;

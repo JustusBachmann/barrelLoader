@@ -6,6 +6,9 @@
 #include "storage.h"
 #include <avr/pgmspace.h>
 
+const char xStr[] PROGMEM = "X";
+const char yStr[] PROGMEM = "Y";
+const char zStr[] PROGMEM = "Z";
 const char x0Str[] PROGMEM = "X0";
 const char y0Str[] PROGMEM = "Y0";
 const char z0Str[] PROGMEM = "Z0";
@@ -27,16 +30,21 @@ const char peak60[] PROGMEM = "Peak60";
 const char singleSide[] PROGMEM = "SingleSide";
 const char globalPos[] PROGMEM = "Global Positions";
 const char selectProg[] PROGMEM = "Select Program";
+const char jogAxesStr[] PROGMEM = "jog axes";
 const char settingsStr[] PROGMEM = "Settings";
 const char barrelLoader[] PROGMEM = "Barrelloader 3.0";
 const char homingStr[] PROGMEM = "Homing";
 const char freeAxisStr[] PROGMEM = "unlock axes";
-// const char placeBarrelStr[] PROGMEM = "Place Barrel";
-// const char loadBarrelStr[] PROGMEM = "Load Barrel";
+const char placeBarrelStr[] PROGMEM = "Place Barrel";
+const char loadBarrelStr[] PROGMEM = "Load Barrel";
 const char peak55TipStr[] PROGMEM = "Peak 55 Tip";
 const char peak60TipStr[] PROGMEM = "Peak 60 Tip";
 const char peakSiSiTipStr[] PROGMEM = "Peak Single Side";
 const char clearEepromStr[] PROGMEM = "Clear EEPROM";
+
+const Item X PROGMEM = {xStr, 0, 255};
+const Item Y PROGMEM = {y0Str, 1, 255};
+const Item Z PROGMEM = {z0Str, 2, 255};
 
 const Item X0 PROGMEM = {x0Str, 0, 1};
 const Item Y0 PROGMEM = {y0Str, 1, 2};
@@ -65,8 +73,10 @@ void findHome();
 const Program homing PROGMEM = {homingStr, &findHome, Peak::NONE};
 void freeAxesFunc();
 const Program freeAxis PROGMEM = {freeAxisStr, &freeAxesFunc, Peak::NONE};
-// const Program placeBarrel PROGMEM = {placeBarrelStr, &placeBarrelFunc, Peak::NONE};
-// const Program loadBarrel PROGMEM = {loadBarrelStr, &barrelLoadFunc, Peak::NONE};
+void placeBarrelFunc();
+const Program placeBarrel PROGMEM = {placeBarrelStr, &placeBarrelFunc, Peak::NONE};
+void barrelLoadFunc();
+const Program loadBarrel PROGMEM = {loadBarrelStr, &barrelLoadFunc, Peak::NONE};
 void peakTipFunc();
 const Program peak55TipProg PROGMEM = {peak55TipStr, &peakTipFunc, Peak::PEAK_55};
 const Program peak60TipProg PROGMEM = {peak60TipStr, &peakTipFunc, Peak::PEAK_60};
@@ -115,6 +125,13 @@ const MenuPage peak60Menu PROGMEM = { peak60, backStr, peak60Positions, 1 };
 const MenuPage peakSiSiMenu PROGMEM = { singleSide, backStr, singleSidePositions, 0 };
 const MenuPage globalPositionsMenu PROGMEM = { globalPos, backStr, globalPositionsPositions, 7 };
 
+const MenuComponent compItemX PROGMEM = { MenuComponent::ITEM, { .item = &X }, xStr };
+const MenuComponent compItemY PROGMEM = { MenuComponent::ITEM, { .item = &Y }, yStr };
+const MenuComponent compItemZ PROGMEM = { MenuComponent::ITEM, { .item = &Z }, zStr };
+const MenuComponent *const jogAxesComps[] PROGMEM =
+    {&compItemX, &compItemY, &compItemZ};
+const MenuPage jogAxes PROGMEM = { jogAxesStr, backStr, jogAxesComps, 2 };
+
 const MenuComponent compClearEepromProg PROGMEM = { MenuComponent::PROGRAM, { .program = &clearEepromProg }, clearEepromStr };
 const MenuComponent compFreeAxisProg PROGMEM = { MenuComponent::PROGRAM, { .program = &freeAxis }, freeAxisStr };
 const MenuComponent compPeak55 PROGMEM = { MenuComponent::PAGE, { .page = &peak55Menu }, peak55 };
@@ -122,12 +139,13 @@ const MenuComponent compPeak60 PROGMEM = { MenuComponent::PAGE, { .page = &peak6
 const MenuComponent compPeakSiSi PROGMEM = { MenuComponent::PAGE, { .page = &peakSiSiMenu }, singleSide };
 const MenuComponent compGlobalPositions PROGMEM = { MenuComponent::PAGE, { .page = &globalPositionsMenu }, globalPos };
 const MenuComponent *const settingsComponents[] PROGMEM = {&compFreeAxisProg, &compGlobalPositions, &compPeakSiSi, &compPeak55, &compPeak60, &compClearEepromProg };
-const MenuPage settingsMenu PROGMEM = { barrelLoader, backStr, settingsComponents, 4 };
+const MenuPage settingsMenu PROGMEM = { barrelLoader, backStr, settingsComponents, 5 };
 
 const MenuComponent compSelectProgram PROGMEM = { MenuComponent::PAGE, { .page = &selectProgram }, selectProg };
+const MenuComponent compJogAxes PROGMEM = { MenuComponent::PAGE, { .page = &jogAxes }, jogAxesStr };
 const MenuComponent compSettings PROGMEM = { MenuComponent::PAGE, { .page = &settingsMenu }, settingsStr };
 const MenuComponent compHoming PROGMEM = { MenuComponent::PROGRAM, { .program = &homing }, homingStr };
-const MenuComponent *const mainMenuComponents[] PROGMEM = { &compSelectProgram, &compSettings, &compHoming };
-const MenuPage mainMenu PROGMEM = { barrelLoader, nullptr, mainMenuComponents, 2 };
+const MenuComponent *const mainMenuComponents[] PROGMEM = { &compSelectProgram, &compJogAxes, &compSettings, &compHoming };
+const MenuPage mainMenu PROGMEM = { barrelLoader, nullptr, mainMenuComponents, 3 };
 
 #endif
