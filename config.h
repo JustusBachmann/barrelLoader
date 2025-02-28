@@ -15,7 +15,6 @@ const uint8_t ENDSTOP[] = {2, 18, 19};   // X, Y, Z, E0 ----- E0 = Y?
 const uint8_t DRV_DIR[] = {10, 7, 4};  // X, Y, Z, E0, E1
 const uint8_t DRV_STEP[] = {11, 8, 5}; // X, Y, Z, E0, E1
 
-const uint16_t DELAY_BETWEEN_STEPS = 1000; //1000 = 1s
 const uint8_t DELAY_READ_ENCODER = 2;
 
 #define SCROLL_STEP 1

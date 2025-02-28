@@ -30,6 +30,7 @@ const char selectProg[] PROGMEM = "Select Program";
 const char settingsStr[] PROGMEM = "Settings";
 const char barrelLoader[] PROGMEM = "Barrelloader 3.0";
 const char homingStr[] PROGMEM = "Homing";
+const char freeAxisStr[] PROGMEM = "unlock axes";
 // const char placeBarrelStr[] PROGMEM = "Place Barrel";
 // const char loadBarrelStr[] PROGMEM = "Load Barrel";
 const char peak55TipStr[] PROGMEM = "Peak 55 Tip";
@@ -62,6 +63,8 @@ const Item Z4 PROGMEM = {z4Str, 2, 18};
 
 void findHome();
 const Program homing PROGMEM = {homingStr, &findHome, Peak::NONE};
+void freeAxesFunc();
+const Program freeAxis PROGMEM = {freeAxisStr, &freeAxesFunc, Peak::NONE};
 // const Program placeBarrel PROGMEM = {placeBarrelStr, &placeBarrelFunc, Peak::NONE};
 // const Program loadBarrel PROGMEM = {loadBarrelStr, &barrelLoadFunc, Peak::NONE};
 void peakTipFunc();
@@ -113,11 +116,12 @@ const MenuPage peakSiSiMenu PROGMEM = { singleSide, backStr, singleSidePositions
 const MenuPage globalPositionsMenu PROGMEM = { globalPos, backStr, globalPositionsPositions, 7 };
 
 const MenuComponent compClearEepromProg PROGMEM = { MenuComponent::PROGRAM, { .program = &clearEepromProg }, clearEepromStr };
+const MenuComponent compFreeAxisProg PROGMEM = { MenuComponent::PROGRAM, { .program = &freeAxis }, freeAxisStr };
 const MenuComponent compPeak55 PROGMEM = { MenuComponent::PAGE, { .page = &peak55Menu }, peak55 };
 const MenuComponent compPeak60 PROGMEM = { MenuComponent::PAGE, { .page = &peak60Menu }, peak60 };
 const MenuComponent compPeakSiSi PROGMEM = { MenuComponent::PAGE, { .page = &peakSiSiMenu }, singleSide };
 const MenuComponent compGlobalPositions PROGMEM = { MenuComponent::PAGE, { .page = &globalPositionsMenu }, globalPos };
-const MenuComponent *const settingsComponents[] PROGMEM = {&compClearEepromProg, &compGlobalPositions, &compPeakSiSi, &compPeak55, &compPeak60};
+const MenuComponent *const settingsComponents[] PROGMEM = {&compFreeAxisProg, &compGlobalPositions, &compPeakSiSi, &compPeak55, &compPeak60, &compClearEepromProg };
 const MenuPage settingsMenu PROGMEM = { barrelLoader, backStr, settingsComponents, 4 };
 
 const MenuComponent compSelectProgram PROGMEM = { MenuComponent::PAGE, { .page = &selectProgram }, selectProg };

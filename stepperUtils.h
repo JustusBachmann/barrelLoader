@@ -12,17 +12,19 @@ class StepperUtils {
 public:
   AccelStepper steppers[NUM_STEPPERS];
   MultiStepper steppersXYZ;
-  volatile bool stopStepper = false;
-  const uint8_t STEP_SIZE = 50;
+  volatile bool stopStepper[NUM_STEPPERS] = { false };
+  const uint16_t DELAY_BETWEEN_STEPS = 1000; //1000 = 1s
+  const uint8_t STEP_SIZE = 200;
 
   void driveToEndstop(uint8_t axis, int8_t dir) {
-    cli();
+    // cli();
     steppers[axis].setSpeed(dir * 2500);
-    while (digitalRead(ENDSTOP[axis] != LOW)) {
+    while (!stopStepper[axis]) {
       steppers[axis].runSpeed();
     }
     steppers[axis].setCurrentPosition(0);
-    sei();
+
+    // sei();
   }
 
   void stopAll() {
@@ -65,15 +67,15 @@ public:
   }
 
   void initializeSteppers() {
-    for (int i = 0; i < 5; i++) {
+    for (int i = 0; i < NUM_STEPPERS; i++) {
       steppers[i] = AccelStepper(motorInterfaceType, DRV_STEP[i], DRV_DIR[i]);
       steppers[i].setMaxSpeed(PROGRAM_SPEED);
       steppers[i].setAcceleration(ACCELERATION);
+      
+      if (i < 3) {
+        steppersXYZ.addStepper(steppers[i]);
+      }
     }
-
-    steppersXYZ.addStepper(steppers[0]);
-    steppersXYZ.addStepper(steppers[1]);
-    steppersXYZ.addStepper(steppers[2]);
   }
 
 private:

@@ -1,11 +1,11 @@
 #include "config.h"
 #include "menuData.h"
+#include "stepperUtils.h"
 #include <U8g2lib.h>
 #include <Wire.h>
 #include <avr/interrupt.h>
 #include <avr/io.h>
 #include <hardwareUtils.h>
-#include "stepperUtils.h"
 #include <menu.h>
 #include <storage.h>
 
@@ -20,7 +20,7 @@ StepperUtils sUtils;
 void renderPosition();
 
 class CustomMenu : public Menu {
-  public:
+public:
   void draw(void (*renderFunction)()) override {
     u8g2.firstPage();
     u8g2.setFont(u8g2_font_ncenB08_tr);
@@ -39,8 +39,7 @@ class CustomMenu : public Menu {
 
   void processItem(const Item *item) override {
     storage.loadFromProgmem(&activeItem, item);
-    storage.loadCurrentValueFromEeprom(
-      item, &Item::eepromOffset, currentValue);
+    storage.loadCurrentValueFromEeprom(item, &Item::eepromOffset, currentValue);
     state = State::SETTING;
     draw(renderPosition);
   }
@@ -72,7 +71,7 @@ public:
     return step;
   }
 
-  void initializePins(const uint8_t* pins, void (*pinModeFunc)(uint8_t)) {
+  void initializePins(const uint8_t *pins, void (*pinModeFunc)(uint8_t)) {
     uint8_t i = 0;
     while (pins[i]) {
       pinModeFunc(pins[i]);
@@ -90,7 +89,6 @@ private:
 
 CustomHardwareUtils utils;
 CustomMenu menu;
-
 
 struct DynPosition {
   Item *pos;
@@ -114,8 +112,14 @@ void setup() {
   pinMode(ENCODER_SW, INPUT_PULLUP);
   utils.initEncoder();
 
-  utils.initializePins(DRV_ENABLE, [](uint8_t pin) { pinMode(pin, OUTPUT); HardwareUtils::setLow(pin); });
-  utils.initializePins(ENDSTOP, [](uint8_t pin) { pinMode(pin, INPUT_PULLUP); attachInterrupt(digitalPinToInterrupt(pin), endstopReached, FALLING); });
+  utils.initializePins(DRV_ENABLE, [](uint8_t pin) {
+    pinMode(pin, OUTPUT);
+    HardwareUtils::setLow(pin);
+  });
+  utils.initializePins(ENDSTOP, [](uint8_t pin) {
+    pinMode(pin, INPUT_PULLUP);
+    attachInterrupt(digitalPinToInterrupt(pin), endstopReached, FALLING);
+  });
   utils.initializePins(MESA_OUT, [](uint8_t pin) { pinMode(pin, OUTPUT); });
   utils.initializePins(RELAIS, [](uint8_t pin) { pinMode(pin, OUTPUT); });
   utils.initializePins(MESA_IN, [](uint8_t pin) { pinMode(pin, INPUT); });
@@ -127,20 +131,16 @@ void setup() {
   menu.loadPage(&mainMenu);
   menu.navigationHistory[menu.historyIndex] = &mainMenu;
   menu.clear();
-
 }
 
 void loop() {
-  if (sUtils.stopStepper) {
-    sUtils.stopStepper = false;
-  }
   switch (menu.state) {
   case State::IDLE:
     handleIdleState();
     break;
 
   case State::SETTING:
-  handleSettingState();
+    handleSettingState();
     break;
 
   default:
@@ -149,8 +149,15 @@ void loop() {
   delay(1);
 }
 
-void endstopReached() {
-  sUtils.stopStepper = true;
+void endstopReached() { 
+  if (menu.activeItem.name != nullptr) {
+    sUtils.stopStepper[menu.activeItem.axis] = true;
+  } 
+}
+
+void freeAxesFunc() {
+  memset(sUtils.stopStepper, false, sizeof(sUtils.stopStepper));
+  menu.state = State::IDLE;
 }
 
 // --------------------------------------------------------------------------------
@@ -168,26 +175,23 @@ void handleIdleState() {
 
 void handleSettingState() {
   if (utils.detectButton()) {
-    // while (!sUtils.destinationReached(currentPosition.axis)) {
-    //   sUtils.steppers[currentPosition.axis].run();
-    // }
+    while (!sUtils.destinationReached(menu.activeItem.axis) && !sUtils.stopStepper) {
+      sUtils.steppers[menu.activeItem.axis].run();
+    }
     storage.saveToEeprom(&menu.activeItem, &Item::eepromOffset,
-      menu.currentValue);
+                         menu.currentValue);
     menu.clear();
   }
 
-  int8_t direction = utils.detectScroll();
-  if (direction != 0) {
-    menu.drawPartial(renderNewPosition);
-    menu.currentValue += sUtils.STEP_SIZE * direction;
-    sUtils.moveTo(menu.activeItem.axis, menu.currentValue);
+  if (!sUtils.stopStepper) {
+    int8_t direction = utils.detectScroll();
+    if (direction != 0) {
+      menu.drawPartial(renderNewPosition);
+      menu.currentValue += sUtils.STEP_SIZE * direction;
+      sUtils.moveTo(menu.activeItem.axis, menu.currentValue);
+    }
+    sUtils.steppers[menu.activeItem.axis].run();
   }
-
-  // if (sUtils.stop(currentPosition.axis)) {
-  //   sUtils.steppers[currentPosition.axis].stop();
-  //   return;
-  // }
-  sUtils.steppers[menu.activeItem.axis].run();
 }
 
 void renderMenu() {
@@ -258,21 +262,22 @@ void clearEepromFunc() {
 
 void findHome() {
   menu.draw(renderProgram);
-  // loadCurrentPosFromEeprom(&X0);
+  storage.loadFromProgmem(&menu.activeItem, &X0);
   sUtils.driveToEndstop(0, -1);
-  // currentPosition.value = 0;
-  // saveToEeprom(&currentPosition);
+  storage.saveToEeprom(&menu.activeItem, &Item::eepromOffset, menu.currentValue);
+  delay(sUtils.DELAY_BETWEEN_STEPS);
 
-  // loadCurrentPosFromEeprom(&Y0);
+  storage.loadFromProgmem(&menu.activeItem, &Y0);
   sUtils.driveToEndstop(1, 1);
-  // currentPosition.value = 0;
-  // saveToEeprom(&currentPosition);
+  storage.saveToEeprom(&menu.activeItem, &Item::eepromOffset, menu.currentValue);
+  delay(sUtils.DELAY_BETWEEN_STEPS);
 
   // makeSteps(2, 2500, -1);
-  // loadCurrentPosFromEeprom(&Z0);
-  // driveToEndstop(2, 1);
-  // currentPosition.value = 0;
-  // saveToEeprom(&currentPosition);
+  storage.loadFromProgmem(&menu.activeItem, &Z0);
+  sUtils.driveToEndstop(2, 1);
+  storage.saveToEeprom(&menu.activeItem, &Item::eepromOffset, menu.currentValue);
+  delay(sUtils.DELAY_BETWEEN_STEPS);
+  freeAxesFunc();
   menu.clear();
 }
 
