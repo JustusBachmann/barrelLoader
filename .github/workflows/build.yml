@@ -35,7 +35,7 @@ jobs:
       - name: Compile Firmware
         run: |
           mkdir -p build
-          arduino-cli compile --fqbn arduino:avr:mega --output-dir ./build .
+          arduino-cli compile --fqbn arduino:avr:mega --output-dir ./build --libraries ./libraries/ .
 
       # Upload compiled firmware as an artifact
       - name: Upload Compiled Firmware
