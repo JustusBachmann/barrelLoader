@@ -1,22 +1,22 @@
 #include <storage.h>
 
 void Storage::clearEeprom() {
-  for (int i = crcLength; i < EEPROM.length(); i++) {
-    if (EEPROM.read(i) != 0) {
-      EEPROM.write(i, 0);
-    }
-  }
+  // for (int i = crcLength; i < EEPROM.length(); i++) {
+  //   if (EEPROM.read(i) != 0) {
+  //     EEPROM.write(i, 0);
+  //   }
+  // }
 
   unsigned long crc = eepromCrc();
-  for (int i = 0; i < crcLength; i++) {
-    EEPROM.write(i, (crc >> (i * 8)) & 0xFF);
-  }
+  // for (int i = 0; i < crcLength; i++) {
+    // EEPROM.write(i, (crc >> (i * 8)) & 0xFF);
+  // }
 }
 
 bool Storage::checkCrc() {
   unsigned long storedCrc = 0;
   for (int i = 0; i < crcLength; i++) {
-    storedCrc |= ((unsigned long)EEPROM.read(i)) << (i * 8);
+    // storedCrc |= ((unsigned long)EEPROM.read(i)) << (i * 8);
   }
   return storedCrc == eepromCrc();
 }
@@ -30,11 +30,11 @@ unsigned long Storage::eepromCrc() {
 
   unsigned long crc = ~0L;
   // Calculate CRC for all data except reserved bytes
-  for (int index = crcLength; index < EEPROM.length(); ++index) {
-    uint8_t data = EEPROM.read(index);
-    crc = crcTable[(crc ^ data) & 0x0F] ^ (crc >> 4);
-    crc = crcTable[(crc ^ (data >> 4)) & 0x0F] ^ (crc >> 4);
-  }
+  // for (int index = crcLength; index < EEPROM.length(); ++index) {
+  //   uint8_t data = EEPROM.read(index);
+  //   crc = crcTable[(crc ^ data) & 0x0F] ^ (crc >> 4);
+  //   crc = crcTable[(crc ^ (data >> 4)) & 0x0F] ^ (crc >> 4);
+  // }
   return ~crc;
 }
 

@@ -3,8 +3,8 @@
 #include "stepperUtils.h"
 #include <U8g2lib.h>
 #include <Wire.h>
-#include <avr/interrupt.h>
-#include <avr/io.h>
+// #include <avr/interrupt.h>
+// #include <avr/io.h>
 #include <hardwareUtils.h>
 #include <menu.h>
 #include <storage.h>
@@ -38,7 +38,7 @@ public:
     storage.loadFromProgmem(&activeItem, item);
     storage.loadCurrentValueFromEeprom(item, &Item::eepromOffset, currentValue);
     state = State::SETTING;
-    if (activePage.name == &jogAxesStr) {
+    if (strcmp(activePage.name, jogAxesStr) == 0) {
       draw(renderJog);
     } else {
       draw(renderPosition);
@@ -148,7 +148,7 @@ void endstopReached() {
 }
 
 void freeAxesFunc() {
-  memset(sUtils.stopStepper, false, sizeof(sUtils.stopStepper));
+  memset((void*)sUtils.stopStepper, false, sizeof(sUtils.stopStepper));
   menu.state = State::IDLE;
 }
 
@@ -171,7 +171,7 @@ void handleSettingState() {
            !sUtils.stopStepper[menu.activeItem.axis]) {
       sUtils.run(menu.activeItem.axis);
     }
-    if (menu.activePage.name != &jogAxesStr) {
+    if (strcmp(menu.activePage.name, jogAxesStr) != 0) {
       storage.saveToEeprom(&menu.activeItem, &Item::eepromOffset,
                            menu.currentValue);
     }
@@ -291,26 +291,26 @@ void findHome() {
 }
 
 void placeBarrelFunc() {
-  Item *pos[] = {&Y0, &Z0};
+  Item *pos[] = {(Item*)&Y0, (Item*)&Z0};
   sUtils.performStepSequence(pos);
 
-  Item *pos2[] = {&X4};
+  Item *pos2[] = {(Item*)&X4};
   sUtils.performStepSequence(pos2);
 
-  Item *pos3[] = {&Y4, &Z4};
+  Item *pos3[] = {(Item*)&Y4, (Item*)&Z4};
   sUtils.performStepSequence(pos3);
 
   utils.setLow(RELAIS[0]);
 
-  Item *pos4[] = {&Y0, &Z0};
+  Item *pos4[] = {(Item*)&Y0, (Item*)&Z0};
   sUtils.performStepSequence(pos4);
 
-  Item *pos5[] = {&X0};
+  Item *pos5[] = {(Item*)&X0};
   sUtils.performStepSequence(pos5);
 }
 
 void barrelLoadFunc() {
-  Item *pos[] = {&X0, &Y0, &Z0};
+  Item *pos[] = {(Item*)&X0, (Item*)&Y0, (Item*)&Z0};
   sUtils.performStepSequence(pos);
 
   utils.setLow(RELAIS[0]);
@@ -322,16 +322,16 @@ void barrelLoadFunc() {
   utils.setLow(RELAIS[1]);
   utils.setHigh(RELAIS[2]);
 
-  Item *pos2[] = {&Y1};
+  Item *pos2[] = {(Item*)&Y1};
   sUtils.performStepSequence(pos2);
 
   utils.setHigh(RELAIS[0]);
   utils.setLow(RELAIS[2]);
 
-  Item *pos3[] = {&Y0, &Z1};
+  Item *pos3[] = {(Item*)&Y0, (Item*)&Z1};
   sUtils.performStepSequence(pos3);
 
-  Item *pos4[] = {&X0, &Z0};
+  Item *pos4[] = {(Item*)&X0, (Item*)&Z0};
   sUtils.performStepSequence(pos4);
 
   sUtils.makeSteps(3, -400);
@@ -344,18 +344,18 @@ void peakTipFunc() {
   Item *X3 = nullptr;
   switch (menu.activeProgram.peakMode) {
   case Peak::PEAK_55:
-    X2 = &peak55X2;
-    X3 = &peak55X3;
+    X2 = (Item*)&peak55X2;
+    X3 = (Item*)&peak55X3;
     Serial.println("peak55");
     break;
 
   case Peak::PEAK_60:
-    X2 = &peak60X2;
-    X3 = &peak60X3;
+    X2 = (Item*)&peak60X2;
+    X3 = (Item*)&peak60X3;
     break;
 
   case Peak::SINGLE_SIDE:
-    X2 = &singleSideX2;
+    X2 = (Item*)&singleSideX2;
     break;
 
   default:
@@ -368,7 +368,7 @@ void peakTipFunc() {
 
   barrelLoadFunc();
 
-  Item *pos[] = {&X1, &Y2, &Z2};
+  Item *pos[] = {(Item*)&X1, (Item*)&Y2, (Item*)&Z2};
   sUtils.performStepSequence(pos);
 
   // TODO request open chuck
@@ -379,21 +379,21 @@ void peakTipFunc() {
 
   utils.setLow(RELAIS[0]);
 
-  Item *pos3[] = {&X1, &Y0, &Z0};
+  Item *pos3[] = {(Item*)&X1, (Item*)&Y0, (Item*)&Z0};
   sUtils.performStepSequence(pos3);
 
   utils.setHigh(MESA_OUT[0]);
   utils.setHigh(MESA_IN[0]);
   utils.setLow(MESA_OUT[0]);
 
-  Item *pos4[] = {X2, &Y2, &Z2};
+  Item *pos4[] = {X2, (Item*)&Y2, (Item*)&Z2};
   sUtils.performStepSequence(pos4);
 
   utils.setHigh(RELAIS[0]);
 
   // TODO request open chuck
 
-  Item *pos5[] = {&X1};
+  Item *pos5[] = {(Item*)&X1};
   sUtils.performStepSequence(pos5);
 
   placeBarrelFunc();

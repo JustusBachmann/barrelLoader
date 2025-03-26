@@ -2,8 +2,8 @@
 #define STORAGE_H
 
 #include <Arduino.h>
-#include <EEPROM.h>
-#include <avr/pgmspace.h>
+// #include <EEPROM.h>
+// #include <avr/pgmspace.h>
 
 #define crcLength 4
 #define lengthOfInt16_t 2
@@ -39,10 +39,10 @@ class Storage {
     void loadCurrentValueFromEeprom(const Item* itemPtr, const T Item::* offsetField, int16_t& currentValue) {
         int baseAddr = loadOffsetFromProgmem(itemPtr, offsetField) * lengthOfInt16_t + crcLength;
 
-        if (baseAddr + lengthOfInt16_t > EEPROM.length()) {
-            currentValue = 0;
-            return;
-        }
+        // if (baseAddr + lengthOfInt16_t > EEPROM.length()) {
+        //     currentValue = 0;
+        //     return;
+        // }
         currentValue = read16BitFromEEPROM(baseAddr);
     }
 
@@ -59,9 +59,9 @@ class Storage {
     }
 
     void writeByteToEEPROM(int address, uint8_t value) {
-        if (EEPROM.read(address) != value) {
-            EEPROM.write(address, value);
-        }
+        // if (EEPROM.read(address) != value) {
+        //     EEPROM.write(address, value);
+        // }
     }
 
     void writeCrcToEEPROM(unsigned long crc) {
@@ -71,7 +71,7 @@ class Storage {
     }
     
     int16_t read16BitFromEEPROM(int address) {
-      return EEPROM.read(address) | ((int16_t)EEPROM.read(address + 1) << 8);
+      return 1;// return EEPROM.read(address) | ((int16_t)EEPROM.read(address + 1) << 8);
     }
 
     void write16BitToEEPROM(int address, int16_t value) {
